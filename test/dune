@@ -1,0 +1,4 @@
+(library (name tracing_test) (preprocess (pps ppx_jane))
+ (libraries core expect_test_helpers_core gc_recent_events tracing_zero
+  tracing tracing_demo tracing_record_gc tracing_probes core_unix
+  patdiff.expect_test_patdiff core_unix.filename_unix core_unix.sys_unix))
