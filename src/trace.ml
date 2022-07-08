@@ -84,7 +84,9 @@ module Baked_args = struct
   type baked_value =
     | String of TW.String_id.t
     | Int32 of int
-    | Int64 of int
+    | Int63 of int
+    | Int64 of int64
+    | Pointer of int64
     | Float of float
 
   type t = (TW.String_id.t * baked_value) list
@@ -95,7 +97,10 @@ module Baked_args = struct
     | String s ->
       incr temp_slot;
       String (TW.set_temp_string_slot trace.writer ~slot:!temp_slot s)
-    | Int i -> if Util.int_fits_in_int32 i then Int32 i else Int64 i
+    | Int i -> if Util.int_fits_in_int32 i then Int32 i else Int63 i
+    | Int64 i ->
+      if Util.int64_fits_in_int32 i then Int32 (Int64.to_int_trunc i) else Int64 i
+    | Pointer p -> Pointer p
     | Float f -> Float f
   ;;
 
@@ -114,7 +119,7 @@ module Baked_args = struct
       match v with
       | String _ -> incr strings
       | Int32 _ -> incr int32s
-      | Int64 _ -> incr int64s
+      | Int63 _ | Int64 _ | Pointer _ -> incr int64s
       | Float _ -> incr floats);
     TW.Arg_types.create
       ~int32s:!int32s
@@ -128,7 +133,9 @@ module Baked_args = struct
     List.iter t ~f:(function
       | name, String s -> TW.Write_arg.string w ~name s
       | name, Int32 i -> TW.Write_arg.int32 w ~name i
+      | name, Int63 i -> TW.Write_arg.int63 w ~name i
       | name, Int64 i -> TW.Write_arg.int64 w ~name i
+      | name, Pointer p -> TW.Write_arg.pointer w ~name p
       | name, Float f -> TW.Write_arg.float w ~name f)
   ;;
 end
@@ -180,7 +187,7 @@ let write_instant = writer_adapter TW.write_instant (fun write_args () -> write_
 let write_counter t ~args ~thread ~category ~name ~time =
   List.iter args ~f:(fun (_, v) ->
     match v with
-    | Trace_intf.Event_arg.Int _ | Float _ -> ()
+    | Trace_intf.Event_arg.Int _ | Int64 _ | Pointer _ | Float _ -> ()
     | Interned _ | String _ -> failwith "counter events only accept numeric arguments.");
   (* Unlike the other types of IDs where we expose allocation to the user, counter IDs
      both don't have a separate creation step and we have a name to automatically

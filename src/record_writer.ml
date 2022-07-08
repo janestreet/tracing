@@ -35,6 +35,8 @@ let create_arg_types event_args =
     match (value : Parser.Event_arg.value) with
     | String _ -> incr strings
     | Int i -> if Util.int_fits_in_int32 i then incr int32s else incr int64s
+    | Int64 i -> if Util.int64_fits_in_int32 i then incr int32s else incr int64s
+    | Pointer _ -> incr int64s
     | Float _ -> incr floats);
   Writer.Arg_types.create
     ~int32s:!int32s
@@ -86,7 +88,12 @@ let process_event t (event : Parser.Event.t) =
     | Int i ->
       if Util.int_fits_in_int32 i
       then Writer.Write_arg.int32 t.writer ~name i
-      else Writer.Write_arg.int64 t.writer ~name i)
+      else Writer.Write_arg.int63 t.writer ~name i
+    | Int64 i ->
+      if Util.int64_fits_in_int32 i
+      then Writer.Write_arg.int32 t.writer ~name (Int64.to_int_trunc i)
+      else Writer.Write_arg.int64 t.writer ~name i
+    | Pointer p -> Writer.Write_arg.pointer t.writer ~name p)
 ;;
 
 let process_string_record t ~index ~value =

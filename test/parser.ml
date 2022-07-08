@@ -83,6 +83,16 @@ let%expect_test "parses demo trace" =
      (Event
       ((timestamp 20ms) (thread 1) (category 104) (name 105)
        (arguments ((104 (Float 2.5)))) (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 20ms) (thread 1) (category 104) (name 105)
+       (arguments ((104 (Int64 9223372036854775807))))
+       (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 20ms) (thread 1) (category 104) (name 105)
+       (arguments ((104 (Pointer 0x7fffffffffffffff))))
+       (event_type (Counter (id 1))))))
     (Error No_more_words)
     ((num_unparsed_records 0) (num_unparsed_args 0)) |}]
 ;;
@@ -257,7 +267,7 @@ let%expect_test "ignores unknown arg types" =
       ~name:TW.String_id.empty
       ~ticks:100
       ~counter_id:3;
-    TW.Write_arg.int64 writer ~name:TW.String_id.empty 12345678;
+    TW.Write_arg.int63 writer ~name:TW.String_id.empty 12345678;
     TW.Write_arg.int32 writer ~name:TW.String_id.empty 9
   in
   let buf = Trace_test_helpers.trace_to_buf write_trace in

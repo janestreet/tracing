@@ -22,3 +22,4 @@ synopsis: "Tracing library"
 description: "
 Utilities for creating and parsing traces in Fuchsia Trace Format.
 "
+available: arch != "arm32" & arch != "x86_32"
