@@ -177,10 +177,10 @@ module Expert : sig
       global writer is initialized. *)
   val force_switch_buffers : t -> unit
 
-  (** Finish all pending writes to underlying buffer and notify the [Destination]
+  (** Finish all pending writes to underlying buffer.
 
       This is currently only intended for use by tests. *)
-  val flush_and_notify : t -> unit
+  val flush : t -> unit
 
   type header
 

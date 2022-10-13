@@ -3,50 +3,50 @@ module Writer = Tracing_zero.Writer
 module Event_type = Writer.Expert.Event_type
 module Buffer_until_initialized = Tracing_zero.Destinations.Buffer_until_initialized
 
-let global_dest = Buffer_until_initialized.create ()
+module Expert = struct
+  let global_dest = Buffer_until_initialized.create ()
 
-let tick_translation =
-  let calibrator = Lazy.force Time_stamp_counter.calibrator in
-  (* Only fails when on a 32 bit platform is detected, which we don't deploy any of *)
-  let mhz_est = (Or_error.ok_exn Time_stamp_counter.Calibrator.cpu_mhz) calibrator in
-  let ticks_per_second = Float.to_int (mhz_est *. 1E6) in
-  let base_tsc = Time_stamp_counter.now () in
-  let base_ticks = base_tsc |> Time_stamp_counter.to_int63 |> Int63.to_int_exn in
-  let base_time = Time_stamp_counter.to_time_ns ~calibrator base_tsc in
-  { Writer.Tick_translation.ticks_per_second; base_ticks; base_time }
-;;
+  let tick_translation =
+    let calibrator = Lazy.force Time_stamp_counter.calibrator in
+    (* Only fails when on a 32 bit platform is detected, which we don't deploy any of *)
+    let mhz_est = (Or_error.ok_exn Time_stamp_counter.Calibrator.cpu_mhz) calibrator in
+    let ticks_per_second = Float.to_int (mhz_est *. 1E6) in
+    let base_tsc = Time_stamp_counter.now () in
+    let base_ticks = base_tsc |> Time_stamp_counter.to_int63 |> Int63.to_int_exn in
+    let base_time = Time_stamp_counter.to_time_ns ~calibrator base_tsc in
+    { Writer.Tick_translation.ticks_per_second; base_ticks; base_time }
+  ;;
 
-let global_writer =
-  let destination = Buffer_until_initialized.to_destination global_dest in
-  let w = Writer.Expert.create ~destination () in
-  Writer.write_tick_initialization w tick_translation;
-  w
-;;
+  let global_writer =
+    let destination = Buffer_until_initialized.to_destination global_dest in
+    let w = Writer.Expert.create ~destination () in
+    Writer.write_tick_initialization w tick_translation;
+    w
+  ;;
 
-let main_thread = Writer.set_thread_slot global_writer ~slot:0 ~pid:1 ~tid:2
+  let main_thread = Writer.set_thread_slot global_writer ~slot:0 ~pid:1 ~tid:2
 
-let set_destination dest =
-  Buffer_until_initialized.set_destination global_dest dest;
-  (* This isn't strictly necessary but it avoids a latency spike from the copy when the
-     temp buffer gets filled up, and makes sure that we're writing to a buffer that at
-     least has some chance of surviving a crash. *)
-  Writer.Expert.force_switch_buffers global_writer
-;;
-
-let close () = Writer.close global_writer
+  let set_destination dest =
+    Buffer_until_initialized.set_destination global_dest dest;
+    (* This isn't strictly necessary but it avoids a latency spike from the copy when the
+       temp buffer gets filled up, and makes sure that we're writing to a buffer that at
+       least has some chance of surviving a crash. *)
+    Writer.Expert.force_switch_buffers global_writer
+  ;;
+end
 
 module Event = struct
   type t = Writer.Expert.header
 
   let create_duration ~arg_types ~category ~name =
-    let category = Writer.intern_string global_writer category in
-    let name = Writer.intern_string global_writer name in
+    let category = Writer.intern_string Expert.global_writer category in
+    let name = Writer.intern_string Expert.global_writer name in
     let begin_header =
       Writer.Expert.precompute_header
         ~event_type:Event_type.duration_begin
         ~extra_words:0
         ~arg_types
-        ~thread:main_thread
+        ~thread:Expert.main_thread
         ~category
         ~name
     in
@@ -55,7 +55,7 @@ module Event = struct
         ~event_type:Event_type.duration_end
         ~extra_words:0
         ~arg_types:Writer.Arg_types.none
-        ~thread:main_thread
+        ~thread:Expert.main_thread
         ~category
         ~name
     in
@@ -63,14 +63,14 @@ module Event = struct
   ;;
 
   let create_event ~event_type ~arg_types ~category ~name ~extra_words =
-    let category = Writer.intern_string global_writer category in
-    let name = Writer.intern_string global_writer name in
+    let category = Writer.intern_string Expert.global_writer category in
+    let name = Writer.intern_string Expert.global_writer name in
     let header =
       Writer.Expert.precompute_header
         ~event_type
         ~extra_words
         ~arg_types
-        ~thread:main_thread
+        ~thread:Expert.main_thread
         ~category
         ~name
     in
@@ -91,13 +91,58 @@ module Event = struct
     create_event ~event_type:Event_type.duration_complete ~extra_words:1
   ;;
 
-  let write header = Writer.Expert.write_from_header_with_tsc global_writer ~header
+  let write header = Writer.Expert.write_from_header_with_tsc Expert.global_writer ~header
 
   let write_and_get_tsc header =
-    Writer.Expert.write_from_header_and_get_tsc global_writer ~header
+    Writer.Expert.write_from_header_and_get_tsc Expert.global_writer ~header
   ;;
 end
 
 module For_testing = struct
-  let tick_translation = tick_translation
+  let tick_translation = Expert.tick_translation
+end
+
+let global_file_destination = ref None
+
+let start ~filename =
+  let filename = filename ^ ".ftf" in
+  (match !global_file_destination with
+   | None -> global_file_destination := Some filename
+   | Some f -> failwith (sprintf "Already started tracing to file %s" f));
+  Expert.set_destination (Tracing_zero.Destinations.file_destination ~filename ())
+;;
+
+let close () = Writer.close Expert.global_writer
+
+let serve ?port () =
+  let p = Option.value ~default:8080 port in
+  let path =
+    match !global_file_destination with
+    | Some f -> f
+    | None -> failwith "Tracing was not initialized!"
+  in
+  close ();
+  Tracing.Tool_output.Serve.(serve_file (port p) ~path) |> Async.Deferred.Or_error.ok_exn
+;;
+
+module Probes = struct
+  let enable_all () =
+    let open Probes_lib in
+    Self.update (Selected [ Enable, Regex (pattern "trace__.*") ])
+  ;;
+
+  let disable_all () =
+    let open Probes_lib in
+    Self.update (Selected [ Disable, Regex (pattern "trace__.*") ])
+  ;;
+
+  let enable ~category =
+    let open Probes_lib in
+    Self.update (Selected [ Enable, Regex (pattern ("trace__" ^ category ^ "__.*")) ])
+  ;;
+
+  let disable ~category =
+    let open Probes_lib in
+    Self.update (Selected [ Disable, Regex (pattern ("trace__" ^ category ^ "__.*")) ])
+  ;;
 end

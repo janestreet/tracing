@@ -1,16 +1,11 @@
 open! Core
 
-
 let direct_file_destination ?(buffer_size = 4096 * 16) ~filename () =
   let buf = Iobuf.create ~len:buffer_size in
   let file = Core_unix.openfile ~mode:[ O_CREAT; O_TRUNC; O_RDWR ] filename in
-  let written = ref 0 in
   let flush () =
-    Iobuf.rewind buf;
-    Iobuf.advance buf !written;
     Iobuf.flip_lo buf;
     Iobuf_unix.write buf file;
-    written := 0;
     Iobuf.reset buf
   in
   let module Dest = struct
@@ -20,8 +15,6 @@ let direct_file_destination ?(buffer_size = 4096 * 16) ~filename () =
       then failwith "Not enough buffer space in [direct_file_destination]";
       buf
     ;;
-
-    let wrote_bytes count = written := !written + count
 
     let close () =
       flush ();
@@ -42,13 +35,6 @@ let iobuf_destination buf =
      This also ensures our logic works when the window of [buf] is narrower than the
      limits because [sub_shared] leads to a buffer with equal window and limits. *)
   let provided_buf = Iobuf.sub_shared buf in
-  let total_written = ref 0 in
-  (* Ensure we update the length of the buffer based on [wrote_bytes]
-     and thus test that things are calling it correctly. *)
-  let set_cur_length () =
-    Iobuf.rewind provided_buf;
-    Iobuf.advance provided_buf !total_written
-  in
   let module Dest = struct
     (* [next_buf] can be called multiple times even without running out of room, for
        example via [Writer.Expert.force_switch_buffers]. But we can just keep giving back
@@ -59,16 +45,10 @@ let iobuf_destination buf =
       provided_buf
     ;;
 
-    let wrote_bytes count =
-      total_written := !total_written + count;
-      set_cur_length ()
-    ;;
-
     let close () =
-      set_cur_length ();
-      (* Now that it's closed we set the bounds on the buffer we were originally given to
-         match the total length of everything written. *)
-      Iobuf.resize buf ~len:!total_written
+      Iobuf.flip_lo provided_buf;
+      Iobuf.resize ~len:(Iobuf.length provided_buf) buf;
+      Iobuf.resize ~len:0 provided_buf
     ;;
   end
   in
@@ -86,7 +66,6 @@ let black_hole_destination ~len ~touch_memory =
       buf
     ;;
 
-    let wrote_bytes _count = ()
     let close () = ()
   end
   in
@@ -108,29 +87,16 @@ end = struct
     ; dest : (module Writer_intf.Destination)
     }
 
-  type internal =
-    { mutable buffers : (read_write, Iobuf.seek) Iobuf.t list
-    ; mutable written_in_cur_buf : int
-    }
+  type internal = { mutable buffers : (read_write, Iobuf.seek) Iobuf.t list }
 
   let create () =
-    let t = { buffers = []; written_in_cur_buf = 0 } in
+    let t = { buffers = [] } in
     let module Dest = struct
       let next_buf ~ensure_capacity =
         let capacity = Int.max ensure_capacity 1_000 in
         let buf = Iobuf.create ~len:capacity in
         t.buffers <- buf :: t.buffers;
-        t.written_in_cur_buf <- 0;
         buf
-      ;;
-
-      let wrote_bytes count =
-        t.written_in_cur_buf <- t.written_in_cur_buf + count;
-        let cur_buf = List.hd_exn t.buffers in
-        (* Make sure the lo matches the total bytes written, the Writer probably already
-           did this but we don't count on that. *)
-        Iobuf.rewind cur_buf;
-        Iobuf.advance cur_buf t.written_in_cur_buf
       ;;
 
       (* We have nowhere to flush to *)
@@ -147,10 +113,8 @@ end = struct
         let in_buf_len = Iobuf.length in_buf in
         if Iobuf.length !out_buf < in_buf_len
         then out_buf := D.next_buf ~ensure_capacity:in_buf_len;
-        Iobuf.Blit_fill.blito ~src:in_buf ~dst:!out_buf ();
-        D.wrote_bytes in_buf_len);
-      t.buffers <- [];
-      t.written_in_cur_buf <- 0
+        Iobuf.Blit_fill.blito ~src:in_buf ~dst:!out_buf ());
+      t.buffers <- []
     in
     { copy_to; dest }
   ;;
@@ -195,16 +159,6 @@ module Buffer_until_initialized = struct
           | Set d -> d
         in
         D.next_buf ~ensure_capacity
-      ;;
-
-      let wrote_bytes count =
-        let (module D) =
-          match t.state with
-          | Buffering_to temp_buffer -> temp_buffer.dest
-          | Needs_transfer { src; dst = _ } -> src.dest
-          | Set d -> d
-        in
-        D.wrote_bytes count
       ;;
 
       let close () =

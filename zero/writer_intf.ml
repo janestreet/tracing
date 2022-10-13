@@ -9,16 +9,13 @@ open! Core
     which would be required to write to a shared-memory transport involving a ring or
     double-buffering system. *)
 module type Destination = sig
-  (** Called mainly when there isn't enough buffer space left to write a message of
-      [ensure_capacity] bytes and a new buffer is needed. May also be called in certain
-      other situations even if there's enough space in the previous buffer.
+  (** Called before writing up to [ensure_capacity] bytes of data to the destination.
       Any older buffers will no longer be used after calling this function, so it's legal
-      for a [Destination] to re-use [Iobuf.t]s to avoid allocating. *)
-  val next_buf : ensure_capacity:int -> (read_write, Iobuf.seek) Iobuf.t
+      for a [Destination] to re-use [Iobuf.t]s to avoid allocating.
 
-  (** Record that the writer appended a certain number of bytes to the buffer, will be
-      called some time after the bytes are written but before [next_buf] is called. *)
-  val wrote_bytes : int -> unit
+      All writers are expected to update the Iobuf's [lo], either manually or using
+      [Iobuf.Fill]. Data will only be consumed up to the new [lo]. *)
+  val next_buf : ensure_capacity:int -> (read_write, Iobuf.seek) Iobuf.t
 
   (** We will no longer be writing anything. Resources should be flushed and freed. *)
   val close : unit -> unit

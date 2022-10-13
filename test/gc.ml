@@ -19,7 +19,8 @@ let%test_module "gc tracing" =
 
     let%expect_test "simple" =
       let buf = Iobuf.create ~len:10_000 in
-      Tracing_probes.set_destination (Tracing_zero.Destinations.iobuf_destination buf);
+      Tracing_probes.Expert.set_destination
+        (Tracing_zero.Destinations.iobuf_destination buf);
       Tracing_record_gc.record_recent_gc_events ();
       Gc.major ();
       Gc_recent_events.For_testing.write_test_event ();

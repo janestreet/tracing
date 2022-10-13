@@ -10,12 +10,12 @@ let write_with_probes ~n_before ~n_after =
       ~category:"test"
       ~name:"foo"
   in
-  let arg_name = Writer.intern_string Tracing_probes.global_writer "arg" in
+  let arg_name = Writer.intern_string Tracing_probes.Expert.global_writer "arg" in
   let write_probe_events n =
     for _ = 1 to n do
       Tracing_probes.Event.write probe_begin;
       Writer.Expert.Write_arg_unchecked.int32
-        Tracing_probes.global_writer
+        Tracing_probes.Expert.global_writer
         ~name:arg_name
         123;
       Tracing_probes.Event.write probe_end
@@ -25,7 +25,7 @@ let write_with_probes ~n_before ~n_after =
      destination is set. *)
   write_probe_events n_before;
   let buf = Iobuf.create ~len:100_000 in
-  Tracing_probes.set_destination (Tracing_zero.Destinations.iobuf_destination buf);
+  Tracing_probes.Expert.set_destination (Tracing_zero.Destinations.iobuf_destination buf);
   write_probe_events n_after;
   Tracing_probes.close ();
   (* The probes use real rdtsc for ticks and allowing that to be mocked would degrade

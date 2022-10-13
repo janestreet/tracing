@@ -26,6 +26,7 @@ module type S = sig
     type t
 
     val param : t Command.Param.t
+    val port : int -> t
     val serve_file : t -> path:string -> unit Deferred.Or_error.t
   end
 end

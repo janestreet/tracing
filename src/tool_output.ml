@@ -12,6 +12,8 @@ module Serve = struct
     ()
   ;;
 
+  let port _ = ()
+
   let serve_file _t ~path:_ =
     failwith "Serving a Perfetto UI is a Jane Street internal feature."
   ;;

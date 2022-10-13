@@ -1,3 +1,4 @@
 (library (name tracing_probes) (public_name tracing.tracing_probes)
- (libraries core tracing_zero core_unix.time_stamp_counter)
+ (libraries core async tracing tracing_zero core_unix.time_stamp_counter
+  ocaml-probes.probes_lib)
  (preprocess (pps ppx_jane)))

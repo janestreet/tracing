@@ -11,20 +11,53 @@
     to have tools which write trace data without creating a global trace writer. For
     example so a trace collector process wouldn't need to handle weird cases where it
     tries to connect to itself. *)
+
 open! Core
+open! Async
 
-val set_destination : (module Tracing_zero.Writer.Expert.Destination) -> unit
+(** Start writing trace data to a file-backed destination. Must be called once and paired
+    with either [close] or [serve]. Trace events are buffered in memory until [start] is
+    called, at which time they are written to the destination. Subsequent events are sent
+    directly to the destination. *)
+val start : filename:string -> unit
 
-(** Signals that the program is done writing events and to flush all pending events *)
+(** Signals that the program is done writing events and flushes all pending events. *)
 val close : unit -> unit
 
-(** Many things don't have a special fast path, and can be written directly to the trace
-    using this writer. Event arguments for probes must be written using
-    [Writer.Expert.Write_arg_unchecked]. *)
-val global_writer : Tracing_zero.Writer.t
+(** Closes tracing and hosts a Perfetto web UI examining the resulting trace file.
+    Prints message directing the user to the hosted URL. *)
 
-(** The thread ID that events are recorded to representing execution on the main thread *)
-val main_thread : Tracing_zero.Writer.Thread_id.t
+val serve : ?port:int -> unit -> unit Deferred.t
+
+(** Helpers for managing tracing probe state inside your executable. *)
+module Probes : sig
+  (** Turn on all tracing probes. *)
+  val enable_all : unit -> unit
+
+  (** Turn off all tracing probes. *)
+  val disable_all : unit -> unit
+
+  (** Turn on probes within a specific category. *)
+  val enable : category:string -> unit
+
+  (** Turn off probes within a specific category. *)
+  val disable : category:string -> unit
+end
+
+(** Lower-level API for writing individual events to possibly non-file destinations. *)
+module Expert : sig
+  (** Set destination for tracing data: a file, a memory buffer, drop events, etc. *)
+  val set_destination : (module Tracing_zero.Writer.Expert.Destination) -> unit
+
+  (** Many things don't have a special fast path, and can be written directly to the trace
+      using this writer. Event arguments for probes must be written using
+      [Writer.Expert.Write_arg_unchecked]. *)
+  val global_writer : Tracing_zero.Writer.t
+
+  (** The thread ID that events are recorded to representing execution
+      on the main thread  *)
+  val main_thread : Tracing_zero.Writer.Thread_id.t
+end
 
 (** Represents a pre-computed event header that can be quickly written along with a
     hardware timestamp into the global trace. *)

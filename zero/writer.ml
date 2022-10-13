@@ -58,7 +58,6 @@ module Arg_types = Header_template
 
 type t =
   { mutable buf : (read_write, Iobuf.seek) Iobuf.t
-  ; mutable notified_lo : int
   ; destination : (module Destination)
   ; mutable next_thread_id : int
   ; mutable next_string_id : int
@@ -70,6 +69,11 @@ type t =
 
 module Tick_translation = Writer_intf.Tick_translation
 
+(* These functions are the main place data is actually written to the destination [Iobuf].
+   Note that [Iobuf.Fill] automatically updates [lo].
+
+   Writes also occur in [write_string_stream] and [write_from_header_and_get_tsc], both of
+   which update [lo] manually. *)
 let[@inline] write_int64 t i = Iobuf.Fill.int64_le t.buf i
 let[@inline] write_int64_t t i = Iobuf.Fill.int64_t_le t.buf i
 
@@ -84,22 +88,10 @@ let flush t =
     t.pending_word <- false)
 ;;
 
-let notify_writes t =
-  (* We don't notify on every write, just update on how much we've written since we last
-     called [D.wrote_bytes]. *)
-  let buf_lo = Iobuf.Expert.lo t.buf in
-  let partially_written = buf_lo - t.notified_lo in
-  let (module D : Destination) = t.destination in
-  D.wrote_bytes partially_written;
-  t.notified_lo <- buf_lo
-;;
-
 let[@cold] switch_buffers t ~ensure_capacity =
-  notify_writes t;
   let (module D : Destination) = t.destination in
   let buf = D.next_buf ~ensure_capacity in
   t.buf <- buf;
-  t.notified_lo <- Iobuf.Expert.lo buf;
   let buf_len = Iobuf.length t.buf in
   if buf_len < ensure_capacity
   then
@@ -518,7 +510,6 @@ module Expert = struct
       ; num_temp_strs
       ; pending_args = Header_template.none
       ; word_to_flush = 0
-      ; notified_lo = Iobuf.Expert.lo buf
       ; pending_word = false
       }
     in
@@ -546,10 +537,7 @@ module Expert = struct
     switch_buffers t ~ensure_capacity:1
   ;;
 
-  let flush_and_notify t =
-    flush t;
-    notify_writes t
-  ;;
+  let flush = flush
 
   type header = Int64.t
 
@@ -624,11 +612,10 @@ let create_for_file ?num_temp_strs ~filename () =
 ;;
 
 let close t =
-  Expert.flush_and_notify t;
+  flush t;
+  let (module D : Destination) = t.destination in
+  D.close ();
   (* Make buffer have zero length so further writes will ask for a new buffer and throw
      an exception. The [close] function should do that but we don't want to rely on it. *)
-  Iobuf.resize t.buf ~len:0;
-  (* Now that it's safer, close the underlying file *)
-  let (module D : Destination) = t.destination in
-  D.close ()
+  Iobuf.resize t.buf ~len:0
 ;;

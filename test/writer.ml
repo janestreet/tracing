@@ -96,7 +96,6 @@ let%expect_test "write notification logic works" =
         buf
       ;;
 
-      let wrote_bytes count = Core.print_s [%message "wrote_bytes" (count : int)]
       let close () = Core.print_s [%message "close"]
     end
     in
@@ -119,17 +118,13 @@ let%expect_test "write notification logic works" =
       ~name:str
       ~ticks:0
   in
-  TW.Expert.flush_and_notify w;
+  TW.Expert.flush w;
   write_16_byte_event ();
-  TW.Expert.flush_and_notify w;
+  TW.Expert.flush w;
   write_16_byte_event ();
   TW.close w;
-  (* Should be the header, then manually flushed 16b, then flushed 16b from close. *)
-  [%expect
-    {|
+  (* Should be the header, then close. *)
+  [%expect {|
     (next_buf (ensure_capacity 8))
-    (wrote_bytes (count 96))
-    (wrote_bytes (count 16))
-    (wrote_bytes (count 16))
     close |}]
 ;;
