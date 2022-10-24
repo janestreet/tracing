@@ -14,11 +14,12 @@
 
 open! Core
 open! Async
+module Probes = Tracing_probe_state
 
-(** Start writing trace data to a file-backed destination. Must be called once and paired
-    with either [close] or [serve]. Trace events are buffered in memory until [start] is
-    called, at which time they are written to the destination. Subsequent events are sent
-    directly to the destination. *)
+(** Start writing trace data to a file-backed destination. Must be paired with either
+    [close] or [serve]. Trace events are buffered in memory until [start] is called, at
+    which time they are written to the destination. Subsequent events are sent directly to
+    the destination. *)
 val start : filename:string -> unit
 
 (** Signals that the program is done writing events and flushes all pending events. *)
@@ -26,23 +27,7 @@ val close : unit -> unit
 
 (** Closes tracing and hosts a Perfetto web UI examining the resulting trace file.
     Prints message directing the user to the hosted URL. *)
-
 val serve : ?port:int -> unit -> unit Deferred.t
-
-(** Helpers for managing tracing probe state inside your executable. *)
-module Probes : sig
-  (** Turn on all tracing probes. *)
-  val enable_all : unit -> unit
-
-  (** Turn off all tracing probes. *)
-  val disable_all : unit -> unit
-
-  (** Turn on probes within a specific category. *)
-  val enable : category:string -> unit
-
-  (** Turn off probes within a specific category. *)
-  val disable : category:string -> unit
-end
 
 (** Lower-level API for writing individual events to possibly non-file destinations. *)
 module Expert : sig

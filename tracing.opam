@@ -16,8 +16,11 @@ depends: [
   "core_kernel"
   "core_unix"
   "ocaml-probes"
+  "ppx_bench"
+  "ppx_expect"
   "ppx_jane"
-  "dune"         {>= "2.0.0"}
+  "ppx_module_timer"
+  "dune"             {>= "2.0.0"}
 ]
 synopsis: "Tracing library"
 description: "

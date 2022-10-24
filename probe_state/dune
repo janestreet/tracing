@@ -1,0 +1,4 @@
+(library (name tracing_probe_state) (public_name tracing.tracing_probe_state)
+ (libraries ppx_expect.collector ocaml-probes.probes_lib
+  ppx_bench.runtime-lib ppx_module_timer.runtime)
+ (preprocess (pps ppx_jane)))

@@ -1,8 +1,6 @@
 open! Core
 
-let direct_file_destination ?(buffer_size = 4096 * 16) ~filename () =
-  let buf = Iobuf.create ~len:buffer_size in
-  let file = Core_unix.openfile ~mode:[ O_CREAT; O_TRUNC; O_RDWR ] filename in
+let fd_destination_from buf file ~do_close =
   let flush () =
     Iobuf.flip_lo buf;
     Iobuf_unix.write buf file;
@@ -18,11 +16,22 @@ let direct_file_destination ?(buffer_size = 4096 * 16) ~filename () =
 
     let close () =
       flush ();
-      Core_unix.close file
+      if do_close then Core_unix.close file
     ;;
   end
   in
   (module Dest : Writer_intf.Destination)
+;;
+
+let direct_file_destination ?(buffer_size = 4096 * 16) ~filename () =
+  let buf = Iobuf.create ~len:buffer_size in
+  let file = Core_unix.openfile ~mode:[ O_CREAT; O_TRUNC; O_RDWR ] filename in
+  fd_destination_from buf file ~do_close:true
+;;
+
+let fd_destination ?(buffer_size = 4096 * 16) ~fd () =
+  let buf = Iobuf.create ~len:buffer_size in
+  fd_destination_from buf fd ~do_close:false
 ;;
 
 let file_destination ~filename () = direct_file_destination ~filename ()

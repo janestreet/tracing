@@ -2,6 +2,7 @@ open! Core
 module Writer = Tracing_zero.Writer
 module Event_type = Writer.Expert.Event_type
 module Buffer_until_initialized = Tracing_zero.Destinations.Buffer_until_initialized
+module Probes = Tracing_probe_state
 
 module Expert = struct
   let global_dest = Buffer_until_initialized.create ()
@@ -102,13 +103,21 @@ module For_testing = struct
   let tick_translation = Expert.tick_translation
 end
 
-let global_file_destination = ref None
+module Destination_type = struct
+  type t =
+    | None
+    | File of string
+    | Sidecar
+end
+
+let global_destination = ref Destination_type.None
 
 let start ~filename =
-  let filename = filename ^ ".ftf" in
-  (match !global_file_destination with
-   | None -> global_file_destination := Some filename
-   | Some f -> failwith (sprintf "Already started tracing to file %s" f));
+  let filename = filename ^ ".fxt" in
+  (match !global_destination with
+   | None -> global_destination := File filename
+   | File f -> failwith (sprintf "Already started tracing to file %s!" f)
+   | Sidecar -> failwith (sprintf "Already started tracing to sidecar!"));
   Expert.set_destination (Tracing_zero.Destinations.file_destination ~filename ())
 ;;
 
@@ -117,32 +126,11 @@ let close () = Writer.close Expert.global_writer
 let serve ?port () =
   let p = Option.value ~default:8080 port in
   let path =
-    match !global_file_destination with
-    | Some f -> f
+    match !global_destination with
+    | File f -> f
+    | Sidecar -> failwith "Cannot serve trace from main process!"
     | None -> failwith "Tracing was not initialized!"
   in
   close ();
   Tracing.Tool_output.Serve.(serve_file (port p) ~path) |> Async.Deferred.Or_error.ok_exn
 ;;
-
-module Probes = struct
-  let enable_all () =
-    let open Probes_lib in
-    Self.update (Selected [ Enable, Regex (pattern "trace__.*") ])
-  ;;
-
-  let disable_all () =
-    let open Probes_lib in
-    Self.update (Selected [ Disable, Regex (pattern "trace__.*") ])
-  ;;
-
-  let enable ~category =
-    let open Probes_lib in
-    Self.update (Selected [ Enable, Regex (pattern ("trace__" ^ category ^ "__.*")) ])
-  ;;
-
-  let disable ~category =
-    let open Probes_lib in
-    Self.update (Selected [ Disable, Regex (pattern ("trace__" ^ category ^ "__.*")) ])
-  ;;
-end
