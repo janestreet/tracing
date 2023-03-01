@@ -155,7 +155,7 @@ let%test_unit "quickcheck round trips" =
     ~f:(fun events ->
       let expected_buf = Trace_test_helpers.trace_to_buf (write_expected_trace ~events) in
       let expected_buf_str = Iobuf.to_string expected_buf in
-      let parser = Iobuf.read_only expected_buf |> Parser.create in
+      let parser = Tracing.Parser.create ~buffer:(Iobuf.read_only expected_buf) () in
       let num_temp_strs = TW.String_id.max_number_of_temp_string_slots in
       let new_buf =
         Trace_test_helpers.trace_to_buf ~num_temp_strs (write_new_trace ~parser)

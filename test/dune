@@ -1,4 +1,21 @@
+(executables (names to_file) (modules to_file)
+ (libraries core core_unix.command_unix tracing_sidecar tracing_zero
+  tracing_demo)
+ (preprocess (pps ppx_jane)))
+
+(executables (names forward_to_file) (modules forward_to_file)
+ (libraries core core_unix.command_unix tracing_sidecar tracing_zero
+  tracing_demo)
+ (preprocess (pps ppx_jane)))
+
+(executables (names buffer_to_file) (modules buffer_to_file)
+ (libraries core core_unix.command_unix tracing_sidecar tracing_zero
+  tracing_demo)
+ (preprocess (pps ppx_jane)))
+
 (library (name tracing_test) (preprocess (pps ppx_jane))
- (libraries core expect_test_helpers_core gc_recent_events tracing_zero
-  tracing tracing_demo tracing_record_gc tracing_probes core_unix
-  patdiff.expect_test_patdiff core_unix.filename_unix core_unix.sys_unix))
+ (modules :standard \ to_file forward_to_file buffer_to_file)
+ (libraries core expect_test_helpers_core expect_test_helpers_async
+  gc_recent_events tracing_zero tracing tracing_demo tracing_record_gc
+  tracing_probes tracing_sidecar core_unix patdiff.expect_test_patdiff
+  core_unix.filename_unix core_unix.sys_unix))

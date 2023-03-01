@@ -58,7 +58,7 @@ module Arg_types = Header_template
 
 type t =
   { mutable buf : (read_write, Iobuf.seek) Iobuf.t
-  ; destination : (module Destination)
+  ; mutable destination : (module Destination)
   ; mutable next_thread_id : int
   ; mutable next_string_id : int
   ; mutable num_temp_strs : int
@@ -136,9 +136,12 @@ module String_id = struct
 
   let empty = 0
   let process = 1
-  let first_temp = 2
+  let first_dyn = 2
+  let num_dyn = 17
+  let first_temp = 19
   let max_value = (1 lsl 15) - 1
   let max_number_of_temp_string_slots = max_value - first_temp + 1
+  let of_int slot = slot
 end
 
 let set_string_slot t ~string_id s =
@@ -219,6 +222,7 @@ module Thread_id = struct
   type t = int
 
   let first = 1 (* 0 means inline so 1 is first valid value *)
+  let of_int idx = idx - 1
 end
 
 let set_thread_slot t ~slot ~pid ~tid =
@@ -286,6 +290,10 @@ let[@inline] event_header ~counts ~event_type ~thread ~category ~name =
     lor (of_int thread lsl 24)
     lor (of_int category lsl 32)
     lor (of_int name lsl 48))
+;;
+
+let[@inline] header_set_name ~header ~name =
+  Int64.(header land 0x0000ffffffffffffL lor (of_int name lsl 48))
 ;;
 
 module Event_type = struct
@@ -493,7 +501,7 @@ end
 module Expert = struct
   module type Destination = Destination
 
-  let create ?(num_temp_strs = 100) ~destination () =
+  let create_no_header ?(num_temp_strs = 100) ~destination () =
     if num_temp_strs > String_id.max_number_of_temp_string_slots
     then failwith "num_temp_strs too large";
     (* If [num_temp_strs] is set to [String_id.max_number_of_temp_string_slots],
@@ -513,16 +521,58 @@ module Expert = struct
       ; pending_word = false
       }
     in
+    t
+  ;;
+
+  let create ?num_temp_strs ~destination () =
+    let t = create_no_header ?num_temp_strs ~destination () in
     write_header t;
     t
   ;;
 
-  let set_string_slot t ~slot s =
-    let first_non_temp_slot = String_id.first_temp + t.num_temp_strs in
-    if slot >= first_non_temp_slot
+  let set_destination t ~destination =
+    flush t;
+    let (module D : Destination) = destination in
+    t.buf <- D.next_buf ~ensure_capacity:0;
+    t.destination <- destination
+  ;;
+
+  let write_bytes t ~bytes =
+    let length = Bytes.length bytes in
+    let chunk_size = 4096 in
+    let i = ref 0 in
+    while !i < length do
+      let write = Int.min chunk_size (length - !i) in
+      ensure_capacity t write;
+      Iobuf.Fill.bytes t.buf bytes ~str_pos:!i ~len:write;
+      i := !i + write
+    done
+  ;;
+
+  let write_iobuf t ~buf =
+    let length = Iobuf.length buf in
+    let chunk_size = 4096 in
+    let i = ref 0 in
+    while !i < length do
+      let write = Int.min chunk_size (length - !i) in
+      ensure_capacity t write;
+      Iobuf.Blit_fill.blit ~dst:t.buf ~src:buf ~src_pos:!i ~len:write;
+      i := !i + write
+    done
+  ;;
+
+  let set_dyn_slot t ~slot s =
+    if slot >= String_id.num_dyn
     then
-      failwith
-        "Cannot call [Expert.set_string_slot] with a slot that is not a temp string slot";
+      failwithf "dynamic string slot over the limit: %i >= %i" slot String_id.num_dyn ();
+    if slot < 0
+    then failwithf "dynamic string slot must not be negative: slot %i < 0" slot ();
+    let string_id = slot + String_id.first_dyn in
+    set_string_slot t ~string_id s;
+    string_id
+  ;;
+
+  let set_string_slot t ~slot s =
     if slot <= 0 then failwithf "string slot must be positive: slot %i <= 0" slot ();
     if slot = String_id.process
     then (
@@ -557,6 +607,7 @@ module Expert = struct
     header
   ;;
 
+  let[@inline] set_name ~header ~name = header_set_name ~header ~name
   let[@inline] int64_of_tsc ticks = Time_stamp_counter.to_int63 ticks |> Int63.to_int64
 
   let[@inline] write_from_header_and_get_tsc t ~header =

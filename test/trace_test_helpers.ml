@@ -15,3 +15,11 @@ let rec print_records_until_error parser =
   print_s [%sexp (event : (Parser.Record.t, Parser.Parse_error.t) Result.t)];
   if Result.is_ok event then print_records_until_error parser
 ;;
+
+let rec print_records_until parser =
+  let event = Parser.parse_next parser in
+  print_s [%sexp (event : (Parser.Record.t, Parser.Parse_error.t) Result.t)];
+  match event with
+  | Ok _ -> print_records_until parser
+  | Error err -> err
+;;

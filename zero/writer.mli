@@ -27,6 +27,7 @@ module String_id : sig
 
   val empty : t
   val max_number_of_temp_string_slots : int
+  val of_int : int -> t
 end
 
 (** Intern a string into the trace so that it can be referred to with very low cost.
@@ -54,6 +55,8 @@ val num_temp_strs : t -> int
     we expose this to the user. *)
 module Thread_id : sig
   type t [@@immediate]
+
+  val of_int : int -> t
 end
 
 (** Similar to [set_temp_string_slot], interns a thread into a slot ID, overwriting any
@@ -163,10 +166,25 @@ module Expert : sig
 
   val create : ?num_temp_strs:int -> destination:(module Destination) -> unit -> t
 
+  (** Creates writer without writing a FXT file header to the destination. *)
+  val create_no_header
+    :  ?num_temp_strs:int
+    -> destination:(module Destination)
+    -> unit
+    -> t
+
+  (** Switches destination for future data. Use with care; does not reset any state. *)
+  val set_destination : t -> destination:(module Destination) -> unit
+
+  (** Writes raw byte stream to the current destination. *)
+  val write_bytes : t -> bytes:Bytes.t -> unit
+
+  (** Writes raw byte stream to the current destination. *)
+  val write_iobuf : t -> buf:(read, Iobuf.seek) Iobuf.t -> unit
+
   (** Interns a string directly to the specified slot (whereas [set_temp_string_slot] may
       shift the index since certain indices are reserved for internal use). Will raise
-      when setting a slot that is not a temp string slot or when setting slot 1 to any
-      string other than "process".
+      when setting slot 1 to any string other than "process".
 
       Useful for preserving the string ID usage of parsed traces in a way that can lead to
       exact byte equality after a round trip through parsing and writing. *)
@@ -183,6 +201,8 @@ module Expert : sig
   val flush : t -> unit
 
   type header
+
+  val set_name : header:header -> name:String_id.t -> header
 
   (** For use with [precompute_header_and_size] *)
   module Event_type : sig
@@ -207,6 +227,13 @@ module Expert : sig
     -> category:String_id.t
     -> name:String_id.t
     -> header
+
+  (** Interns a string into one of 17 temporary slots reserved for ppx_tracing. These slots
+      are exclusively used to store the category, name, and names of arguments when they
+      cannot be interned globally. Unlike [set_temp_string_slot], strings interned to
+      these slots are valid *only* immediately after interning, as the slot will be reused
+      in subsequent probes. *)
+  val set_dyn_slot : t -> slot:int -> string -> String_id.t
 
   (** Write an event using a pre-composed header, and using less safety checking than
       the normal event writing functions, intended for low-overhead probe instrumentation.

@@ -6,3 +6,4 @@ val trace_to_buf
   -> (read_write, 'a) Iobuf.t
 
 val print_records_until_error : Tracing.Parser.t -> unit
+val print_records_until : Tracing.Parser.t -> Tracing.Parser.Parse_error.t

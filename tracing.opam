@@ -15,15 +15,11 @@ depends: [
   "core"
   "core_kernel"
   "core_unix"
-  "ocaml-probes"
-  "ppx_bench"
-  "ppx_expect"
   "ppx_jane"
-  "ppx_module_timer"
-  "dune"             {>= "2.0.0"}
+  "dune"        {>= "2.0.0"}
 ]
+available: arch != "arm32" & arch != "x86_32"
 synopsis: "Tracing library"
 description: "
 Utilities for creating and parsing traces in Fuchsia Trace Format.
 "
-available: arch != "arm32" & arch != "x86_32"

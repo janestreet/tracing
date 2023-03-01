@@ -19,7 +19,7 @@ let write_field buf i ~word_pos ~field_pos ~field_size =
 
 let%expect_test "parses demo trace" =
   let buf = Trace_test_helpers.trace_to_buf Tracing_demo.write_demo_trace in
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -28,26 +28,26 @@ let%expect_test "parses demo trace" =
     (Ok
      (Tick_initialization (ticks_per_second 1000000000)
       (base_time ((1969-12-31 19:00:00.000000001-05:00)))))
-    (Ok (Interned_string (index 102) (value myproc)))
-    (Ok (Process_name_change (name 102) (pid 1)))
-    (Ok (Interned_string (index 103) (value mythread)))
-    (Ok (Thread_name_change (name 103) (pid 1) (tid 2)))
+    (Ok (Interned_string (index 119) (value myproc)))
+    (Ok (Process_name_change (name 119) (pid 1)))
+    (Ok (Interned_string (index 120) (value mythread)))
+    (Ok (Thread_name_change (name 120) (pid 1) (tid 2)))
     (Ok
      (Interned_thread (index 1)
       (value ((pid 1) (tid 2) (process_name (myproc)) (thread_name (mythread))))))
-    (Ok (Interned_string (index 104) (value stuff)))
-    (Ok (Interned_string (index 105) (value my_funct)))
+    (Ok (Interned_string (index 121) (value stuff)))
+    (Ok (Interned_string (index 122) (value my_funct)))
     (Ok
      (Event
-      ((timestamp 10us) (thread 1) (category 104) (name 105)
-       (arguments ((105 (String 104))))
+      ((timestamp 10us) (thread 1) (category 121) (name 122)
+       (arguments ((122 (String 121))))
        (event_type (Duration_complete (end_time 5ms))))))
-    (Ok (Interned_string (index 3) (value wow)))
-    (Ok (Interned_string (index 4) (value cool)))
+    (Ok (Interned_string (index 20) (value wow)))
+    (Ok (Interned_string (index 21) (value cool)))
     (Ok
      (Event
-      ((timestamp 7ms) (thread 1) (category 104) (name 105)
-       (arguments ((105 (String 3)) (104 (String 4))))
+      ((timestamp 7ms) (thread 1) (category 121) (name 122)
+       (arguments ((122 (String 20)) (121 (String 21))))
        (event_type (Duration_complete (end_time 15ms))))))
     (Ok
      (Event
@@ -55,11 +55,11 @@ let%expect_test "parses demo trace" =
        (event_type (Flow_begin (flow_correlation_id 1))))))
     (Ok
      (Event
-      ((timestamp 17ms) (thread 1) (category 104) (name 105) (arguments ())
+      ((timestamp 17ms) (thread 1) (category 121) (name 122) (arguments ())
        (event_type Instant))))
     (Ok
      (Event
-      ((timestamp 20ms) (thread 1) (category 104) (name 105) (arguments ())
+      ((timestamp 20ms) (thread 1) (category 121) (name 122) (arguments ())
        (event_type Duration_begin))))
     (Ok
      (Event
@@ -67,9 +67,9 @@ let%expect_test "parses demo trace" =
        (event_type (Flow_step (flow_correlation_id 1))))))
     (Ok
      (Event
-      ((timestamp 40ms) (thread 1) (category 104) (name 105)
+      ((timestamp 40ms) (thread 1) (category 121) (name 122)
        (arguments
-        ((105 (Int -4611686018427387904)) (104 (Int -1)) (102 (Float -1))))
+        ((122 (Int -4611686018427387904)) (121 (Int -1)) (119 (Float -1))))
        (event_type Duration_end))))
     (Ok
      (Event
@@ -77,27 +77,27 @@ let%expect_test "parses demo trace" =
        (event_type (Flow_end (flow_correlation_id 1))))))
     (Ok
      (Event
-      ((timestamp 7ms) (thread 1) (category 104) (name 105)
-       (arguments ((104 (Int 1)))) (event_type (Counter (id 1))))))
+      ((timestamp 7ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1)))) (event_type (Counter (id 1))))))
     (Ok
      (Event
-      ((timestamp 20ms) (thread 1) (category 104) (name 105)
-       (arguments ((104 (Float 2.5)))) (event_type (Counter (id 1))))))
+      ((timestamp 20ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Float 2.5)))) (event_type (Counter (id 1))))))
     (Ok
      (Event
-      ((timestamp 20ms) (thread 1) (category 104) (name 105)
-       (arguments ((104 (Int64 9223372036854775807))))
+      ((timestamp 20ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int64 9223372036854775807))))
        (event_type (Counter (id 1))))))
     (Ok
      (Event
-      ((timestamp 20ms) (thread 1) (category 104) (name 105)
-       (arguments ((104 (Pointer 0x7fffffffffffffff))))
+      ((timestamp 20ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Pointer 0x7fffffffffffffff))))
        (event_type (Counter (id 1))))))
     (Error No_more_words)
     ((num_unparsed_records 0) (num_unparsed_args 0)) |}]
 ;;
 
-let%expect_test "parser asks for more words before parsing record" =
+let%expect_test "parser reports record incomplete" =
   let write_trace writer =
     let thread = TW.set_thread_slot writer ~slot:0 ~pid:0 ~tid:0 in
     TW.write_instant
@@ -112,7 +112,7 @@ let%expect_test "parser asks for more words before parsing record" =
   (* Removes the last 8 bytes from the iobuf, cutting off the last word in the instant
      event record. *)
   Iobuf.resize buf ~len:(Iobuf.length buf - 8);
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -121,13 +121,62 @@ let%expect_test "parser asks for more words before parsing record" =
     \    (Ok\n\
     \     (Interned_thread (index 1)\n\
     \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error No_more_words)\n\
+    \    (Error (Incomplete_record \"$\\000\\000\\001\\000\\000\\000\\000\"))\n\
     \    ((num_unparsed_records 0) (num_unparsed_args 0))"];
   (* The first 8 bytes of the instant event record should be unparsed. *)
   [%test_result: int] (Iobuf.length buf) ~expect:8;
   (* After resetting the iobuf to include the last 8 bytes, the trace should parse with no
      errors. *)
   Iobuf.resize buf ~len:16;
+  Trace_test_helpers.print_records_until_error parser;
+  print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
+  [%expect
+    "\n\
+    \    (Ok\n\
+    \     (Event\n\
+    \      ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
+    \       (event_type Instant))))\n\
+    \    (Error No_more_words)\n\
+    \    ((num_unparsed_records 0) (num_unparsed_args 0))"]
+;;
+
+let%expect_test "parser continues with prefix after record incomplete" =
+  let write_trace writer =
+    let thread = TW.set_thread_slot writer ~slot:0 ~pid:0 ~tid:0 in
+    TW.write_instant
+      writer
+      ~arg_types:TW.Arg_types.none
+      ~thread
+      ~category:TW.String_id.empty
+      ~name:TW.String_id.empty
+      ~ticks:100
+  in
+  let buf = Trace_test_helpers.trace_to_buf write_trace in
+  (* Removes the last 8 bytes from the iobuf, cutting off the last word in the instant
+     event record. *)
+  Iobuf.resize buf ~len:(Iobuf.length buf - 8);
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
+  let remaining =
+    match Trace_test_helpers.print_records_until parser with
+    | Incomplete_record remaining -> remaining
+    | _ -> failwith "Got error other than Incomplete_record!"
+  in
+  print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
+  [%expect
+    "\n\
+    \    (Ok (Interned_string (index 1) (value process)))\n\
+    \    (Ok\n\
+    \     (Interned_thread (index 1)\n\
+    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \    (Error (Incomplete_record \"$\\000\\000\\001\\000\\000\\000\\000\"))\n\
+    \    ((num_unparsed_records 0) (num_unparsed_args 0))"];
+  (* The first 8 bytes of the instant event record should be unparsed. *)
+  [%test_result: int] (Iobuf.length buf) ~expect:8;
+  (* Using the remaining bytes as a prefix and the missing bytes as a new buffer,
+     the trace should parse with no errors. *)
+  Iobuf.resize buf ~len:(Iobuf.length buf + 8);
+  Iobuf.advance buf 8;
+  Parser.set_buffer parser ~prefix:remaining (Iobuf.read_only buf);
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -168,7 +217,7 @@ let%expect_test "parser returns 'no more words' for invalid record" =
   let word_pos = Iobuf.length buf - 32 in
   (* Set num_args to 1 on the duration begin event. *)
   write_field buf 1 ~word_pos ~field_pos:20 ~field_size:4;
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   [%expect
     "\n\
@@ -207,7 +256,7 @@ let%expect_test "parsing returns invalid thread ref" =
   let word_pos = Iobuf.length buf - 16 in
   (* Set thread_index to 42 on the event. *)
   write_field buf 42 ~word_pos ~field_pos:24 ~field_size:8;
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -239,7 +288,7 @@ let%expect_test "parsing returns invalid string ref" =
   let word_pos = Iobuf.length buf - 16 in
   (* Set the string index of the "name" field to 23 on the event. *)
   write_field buf 23 ~word_pos ~field_pos:32 ~field_size:16;
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -248,7 +297,7 @@ let%expect_test "parsing returns invalid string ref" =
     \    (Ok\n\
     \     (Interned_thread (index 1)\n\
     \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Ok (Interned_string (index 2) (value test)))\n\
+    \    (Ok (Interned_string (index 19) (value test)))\n\
     \    (Error Invalid_string_ref)\n\
     \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
 ;;
@@ -275,7 +324,7 @@ let%expect_test "ignores unknown arg types" =
   let word_pos = Iobuf.length buf - 32 in
   (* Change the first counter argument to have argtype = 15 (an unknown arg type). *)
   write_field buf 15 ~word_pos ~field_pos:0 ~field_size:4;
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -299,7 +348,7 @@ let%expect_test "parsing returns invalid tick initialization" =
     TW.write_tick_initialization writer tick_translation
   in
   let buf = Trace_test_helpers.trace_to_buf write_trace in
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -326,7 +375,7 @@ let%expect_test "parsing valid ticks returns timestamp too large" =
       ~ticks:1_000_000_000_000
   in
   let buf = Trace_test_helpers.trace_to_buf write_trace in
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -361,7 +410,7 @@ let%expect_test "parsing negative ticks returns timestamp too large" =
       ~ticks:overflowed_ticks
   in
   let buf = Trace_test_helpers.trace_to_buf write_trace in
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
@@ -390,7 +439,7 @@ let%expect_test "parses large timestamps with nanosecond precision" =
       ~ticks:1_700_000_000_000_000_003
   in
   let buf = Trace_test_helpers.trace_to_buf write_trace in
-  let parser = Iobuf.read_only buf |> Parser.create in
+  let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect

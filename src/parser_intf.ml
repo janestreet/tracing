@@ -32,6 +32,7 @@ module Parse_error = struct
     | Invalid_string_ref
     | Invalid_thread_ref
     | Invalid_tick_initialization
+    | Incomplete_record of Bytes.t
   [@@deriving sexp_of]
 end
 

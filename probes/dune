@@ -1,4 +1,0 @@
-(library (name tracing_probes) (public_name tracing.tracing_probes)
- (preprocess (pps ppx_jane))
- (libraries core async tracing tracing_zero tracing_probe_state
-  core_unix.time_stamp_counter))

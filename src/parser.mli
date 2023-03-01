@@ -86,7 +86,19 @@ end
 
 type t
 
-val create : (read, Iobuf.seek) Iobuf.t -> t
+(** Creates parser. A [buffer] may be provided to start parsing from. Equivalently,
+    the user may call [set_buffer] to initialize parsing.
+
+    If [ignore_not_found] is specified, the parser will not raise when parsing events
+    that refer to interned thread and string indices that have not yet been set. Instead,
+    the event will be returned including the unknown indices. *)
+val create : ?ignore_not_found:bool -> ?buffer:(read, Iobuf.seek) Iobuf.t -> unit -> t
+
+(** Provides a new data buffer for the parser to continue reading from. Optionally
+    prepends [prefix] to the buffer, allowing the user to preserve state returned by
+    [Parse_error.Incomplete_record]. If the new buffer completes the record, it will
+    be returned by the next call to [parse_next]. *)
+val set_buffer : t -> ?prefix:Bytes.t -> (read, Iobuf.seek) Iobuf.t -> unit
 
 (** Advance through the trace until we find a Fuchsia record matching one of the record
     types defined above.

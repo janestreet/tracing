@@ -26,7 +26,7 @@ let%test_module "gc tracing" =
       Gc_recent_events.For_testing.write_test_event ();
       Tracing_record_gc.record_recent_gc_events ();
       Tracing_probes.close ();
-      let parser = Iobuf.read_only buf |> Tracing.Parser.create in
+      let parser = Tracing.Parser.create ~buffer:(Iobuf.read_only buf) () in
       let found = found_gc_types parser in
       print_s [%sexp (found : String.Set.t)];
       [%expect {|
