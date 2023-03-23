@@ -65,7 +65,14 @@ type t =
   ; mutable pending_args : Header_template.t
   ; mutable word_to_flush : int
   ; mutable pending_word : bool
+  ; mutable cur_buf_tsc : Time_stamp_counter.t
   }
+
+let new_buf_every =
+  Time_stamp_counter.Span.of_ns
+    ~calibrator:(force Time_stamp_counter.calibrator)
+    (Int63.of_int 1_000_000_000)
+;;
 
 module Tick_translation = Writer_intf.Tick_translation
 
@@ -519,6 +526,7 @@ module Expert = struct
       ; pending_args = Header_template.none
       ; word_to_flush = 0
       ; pending_word = false
+      ; cur_buf_tsc = Time_stamp_counter.now ()
       }
     in
     t
@@ -610,6 +618,11 @@ module Expert = struct
   let[@inline] set_name ~header ~name = header_set_name ~header ~name
   let[@inline] int64_of_tsc ticks = Time_stamp_counter.to_int63 ticks |> Int63.to_int64
 
+  let[@cold] refresh_buf t tsc =
+    switch_buffers t ~ensure_capacity:(Iobuf.length t.buf);
+    t.cur_buf_tsc <- tsc
+  ;;
+
   let[@inline] write_from_header_and_get_tsc t ~header =
     (* Using [unsafe_set_int64_t_le] makes the assembly produced by this function
        much simpler, with the writes getting completely inlined and only one conditional
@@ -645,6 +658,8 @@ module Expert = struct
     let pos = pos + 8 in
     let ticks = Time_stamp_counter.now () in
     Bigstring.unsafe_set_int64_t_le bstr ~pos (int64_of_tsc ticks);
+    if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
+    then refresh_buf t ticks;
     ticks
   ;;
 
