@@ -129,25 +129,16 @@ module Checkpoint = struct
   type t =
     { begin_state : State.t
     ; data : (read_write, Iobuf.seek) Iobuf.t
-    ; data_view : (read_write, Iobuf.seek) Iobuf.t
     ; destination : (module Writer_intf.Destination)
     ; refs : State.References.t
     }
 
   let create ~size_bits ~begin_state =
     let data = Iobuf.create ~len:(Int.pow 2 size_bits) in
-    let (module Dest : Writer_intf.Destination) = Destinations.iobuf_destination data in
-    { begin_state
-    ; destination = (module Dest)
-    ; data
-    (* [data_view] represents the same window as [data], but will have its [lo] updated
-       every time data is written, rather than upon [Dest.close ()].
-
-       This relies on the implementation of [iobuf_destination] always returning the same
-       iobuf view of [data]!! *)
-    ; data_view = Dest.next_buf ~ensure_capacity:0
-    ; refs = State.References.create ()
-    }
+    let (module Dest : Writer_intf.Destination) =
+      Destinations.raw_iobuf_destination data
+    in
+    { begin_state; destination = (module Dest); data; refs = State.References.create () }
   ;;
 
   let process t record =
@@ -183,10 +174,9 @@ module Checkpoint = struct
   ;;
 
   let write t writer =
-    let out = Iobuf.create ~len:0 in
-    Iobuf.set_bounds_and_buffer ~src:t.data_view ~dst:out;
-    Iobuf.flip_lo out;
-    Writer.Expert.write_iobuf writer ~buf:(Iobuf.read_only out)
+    Iobuf.flip_lo t.data;
+    Writer.Expert.write_iobuf writer ~buf:(Iobuf.read_only t.data);
+    Iobuf.flip_hi t.data
   ;;
 end
 
@@ -232,7 +222,6 @@ type t =
   ; parser : Parser.t
   ; errors : Parser_errors.t
   ; mutable empty : bool
-  ; mutable remaining : Bytes.t option
   (* Store two checkpoints as a double buffer. When a dump is requested, we will
      always be able to output all of [prev], even if [current] was just started. *)
   ; mutable prev : Checkpoint.t
@@ -265,7 +254,6 @@ let create ?num_temp_strs ~size_bits () =
   ; record_writer
   ; empty = true
   ; parser = Parser.create ()
-  ; remaining = None
   ; errors = Parser_errors.empty
   ; prev
   ; current
@@ -293,7 +281,7 @@ let resize t ~size_bits =
 module Process_result = struct
   type t =
     | Complete
-    | Incomplete of Bytes.t
+    | Incomplete
     | Out_of_space of int
 end
 
@@ -303,7 +291,7 @@ let process_until t data =
     match Parser.parse_next t.parser with
     | Ok record ->
       if process_record t record then parse () else Process_result.Out_of_space at
-    | Error (Incomplete_record remaining) -> Incomplete remaining
+    | Error Incomplete_record -> Incomplete
     | Error No_more_words -> Complete
     | Error Timestamp_too_large ->
       t.errors.timestamp_too_large <- t.errors.timestamp_too_large + 1;
@@ -324,37 +312,23 @@ let process_until t data =
   parse ()
 ;;
 
-let rec consume'' t data =
+let rec consume' t data =
   match process_until t data with
-  | Process_result.Complete -> t.remaining <- None
-  | Incomplete remaining -> t.remaining <- Some remaining
+  | Complete | Incomplete -> ()
   | Out_of_space at ->
     Iobuf.Expert.set_lo data at;
     flip t;
-    consume'' t data
-;;
-
-let consume' t data =
-  let data =
-    match t.remaining with
-    | None -> data
-    | Some prefix ->
-      let buf = Iobuf.create ~len:(Bytes.length prefix + Iobuf.length data) in
-      Iobuf.Fill.byteso buf prefix;
-      Iobuf.Blit_fill.blito ~src:data ~dst:buf ();
-      Iobuf.reset buf;
-      Iobuf.read_only buf
-  in
-  Parser.set_buffer t.parser data;
-  consume'' t data
+    consume' t data
 ;;
 
 let consume t data =
+  Parser.set_buffer t.parser data;
   consume' t data;
   Parser_errors.clear t.errors
 ;;
 
 let try_consume t data =
+  Parser.set_buffer t.parser data;
   consume' t data;
   let ret =
     if Parser_errors.has_errors t.errors

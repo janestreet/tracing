@@ -17,7 +17,10 @@ val create : ?num_temp_strs:int -> size_bits:int -> unit -> t
 
     To avoid state corruptions (e.g. referring to unknown interned strings), all data
     for a complete trace should be streamed through the buffer, despite only retaining
-    the last N events. *)
+    the last N events.
+
+    If the buffer ends with a partial event, only data until (and not including)
+    the final partial event's header is consumed from the iobuf. *)
 val consume : t -> (read, Iobuf.seek) Iobuf.t -> unit
 
 (** Equivalent to [consume], but if any events fail to parse/validate, returns an error

@@ -1,11 +1,12 @@
 (executables (names sidecar_commander) (modules sidecar_commander)
- (libraries core core_unix.sys_unix core_unix.command_unix file_path
-  tracing_sidecar tracing_zero tracing_demo)
+ (libraries core core_unix.sys_unix core_unix.command_unix
+  tracing_destinations_unix file_path tracing_sidecar tracing_zero
+  tracing_demo)
  (preprocess (pps ppx_jane)))
 
 (library (name tracing_test) (preprocess (pps ppx_jane))
  (modules :standard \ sidecar_commander)
  (libraries core expect_test_helpers_core expect_test_helpers_async
   gc_recent_events tracing_zero tracing tracing_demo tracing_record_gc
-  tracing_probes tracing_sidecar core_unix patdiff.expect_test_patdiff
-  core_unix.filename_unix core_unix.sys_unix))
+  tracing_probes tracing_sidecar tracing_destinations_unix core_unix
+  patdiff.expect_test_patdiff core_unix.filename_unix core_unix.sys_unix))

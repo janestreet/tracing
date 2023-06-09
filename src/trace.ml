@@ -43,7 +43,7 @@ let create ~base_time writer =
 ;;
 
 let create_for_file ~base_time ~filename =
-  let writer = TW.create_for_file ~filename () in
+  let writer = Tracing_destinations_unix.file_writer ~filename () in
   create ~base_time writer
 ;;
 

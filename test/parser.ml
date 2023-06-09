@@ -121,7 +121,7 @@ let%expect_test "parser reports record incomplete" =
     \    (Ok\n\
     \     (Interned_thread (index 1)\n\
     \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error (Incomplete_record \"$\\000\\000\\001\\000\\000\\000\\000\"))\n\
+    \    (Error Incomplete_record)\n\
     \    ((num_unparsed_records 0) (num_unparsed_args 0))"];
   (* The first 8 bytes of the instant event record should be unparsed. *)
   [%test_result: int] (Iobuf.length buf) ~expect:8;
@@ -156,11 +156,9 @@ let%expect_test "parser continues with prefix after record incomplete" =
      event record. *)
   Iobuf.resize buf ~len:(Iobuf.length buf - 8);
   let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
-  let remaining =
-    match Trace_test_helpers.print_records_until parser with
-    | Incomplete_record remaining -> remaining
-    | _ -> failwith "Got error other than Incomplete_record!"
-  in
+  (match Trace_test_helpers.print_records_until parser with
+   | Incomplete_record -> ()
+   | _ -> failwith "Got error other than Incomplete_record!");
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
     "\n\
@@ -168,15 +166,13 @@ let%expect_test "parser continues with prefix after record incomplete" =
     \    (Ok\n\
     \     (Interned_thread (index 1)\n\
     \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error (Incomplete_record \"$\\000\\000\\001\\000\\000\\000\\000\"))\n\
+    \    (Error Incomplete_record)\n\
     \    ((num_unparsed_records 0) (num_unparsed_args 0))"];
   (* The first 8 bytes of the instant event record should be unparsed. *)
   [%test_result: int] (Iobuf.length buf) ~expect:8;
   (* Using the remaining bytes as a prefix and the missing bytes as a new buffer,
      the trace should parse with no errors. *)
   Iobuf.resize buf ~len:(Iobuf.length buf + 8);
-  Iobuf.advance buf 8;
-  Parser.set_buffer parser ~prefix:remaining (Iobuf.read_only buf);
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect

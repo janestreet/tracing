@@ -1,41 +1,5 @@
 open! Core
 
-let fd_destination_from buf file ~do_close =
-  let flush () =
-    Iobuf.flip_lo buf;
-    Iobuf_unix.write buf file;
-    Iobuf.reset buf
-  in
-  let module Dest = struct
-    let next_buf ~ensure_capacity =
-      flush ();
-      if ensure_capacity > Iobuf.length buf
-      then failwith "Not enough buffer space in [direct_file_destination]";
-      buf
-    ;;
-
-    let close () =
-      flush ();
-      if do_close then Core_unix.close file
-    ;;
-  end
-  in
-  (module Dest : Writer_intf.Destination)
-;;
-
-let direct_file_destination ?(buffer_size = 4096 * 16) ~filename () =
-  let buf = Iobuf.create ~len:buffer_size in
-  let file = Core_unix.openfile ~mode:[ O_CREAT; O_TRUNC; O_RDWR ] filename in
-  fd_destination_from buf file ~do_close:true
-;;
-
-let fd_destination ?(buffer_size = 4096 * 16) ~fd () =
-  let buf = Iobuf.create ~len:buffer_size in
-  fd_destination_from buf fd ~do_close:false
-;;
-
-let file_destination ~filename () = direct_file_destination ~filename ()
-
 let iobuf_destination buf =
   (* We give out an [Iobuf] with a shared underlying [Bigstring] but different pointers
      so that when this is closed the provided buffer keeps its window, and we can test
@@ -59,6 +23,23 @@ let iobuf_destination buf =
       Iobuf.resize ~len:(Iobuf.length provided_buf) buf;
       Iobuf.resize ~len:0 provided_buf
     ;;
+  end
+  in
+  (module Dest : Writer_intf.Destination)
+;;
+
+let raw_iobuf_destination buf =
+  let module Dest = struct
+    (* [next_buf] can be called multiple times even without running out of room, for
+       example via [Writer.Expert.force_switch_buffers]. But we can just keep giving back
+       the same buffer as long as it has room *)
+    let next_buf ~ensure_capacity =
+      if ensure_capacity > Iobuf.length buf
+      then failwith "No more room in [iobuf_destination]";
+      buf
+    ;;
+
+    let close () = ()
   end
   in
   (module Dest : Writer_intf.Destination)

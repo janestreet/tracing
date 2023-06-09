@@ -80,7 +80,7 @@ let%expect_test "writing directly to a file" =
   let buffer_size = 4096 in
   let file_size =
     test_file_writer ~f:(fun filename ->
-      Tracing_zero.Destinations.direct_file_destination ~buffer_size ~filename ())
+      Tracing_destinations_unix.direct_file_destination ~buffer_size ~filename ())
   in
   (* Ensure that we actually hit the buffer flush case multiple times. *)
   assert (file_size > buffer_size * 3);

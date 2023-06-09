@@ -42,7 +42,7 @@ let%expect_test "Buffer_until_initialized" =
 let%expect_test "file_descriptor" =
   let expected_buf = Trace_test_helpers.trace_to_buf Tracing_demo.write_demo_trace in
   let filename, fd = Filename_unix.open_temp_file_fd "fd_dest_test" "ftf" in
-  let destination = Tracing_zero.Destinations.fd_destination ~fd () in
+  let destination = Tracing_destinations_unix.fd_destination ~fd () in
   let writer = Tracing_zero.Writer.Expert.create ~destination () in
   Tracing_demo.write_demo_trace writer;
   Tracing_zero.Writer.close writer;
@@ -65,7 +65,7 @@ let%expect_test "ringbuf_blocking" =
   let producer, consumer = make_ring "ringbuf_test" 14 in
   let expected_buf = Trace_test_helpers.trace_to_buf (repeated_demo 10) in
   let destination =
-    Tracing_zero.Destinations.ringbuf_destination ~blocking:true producer
+    Tracing_destinations_unix.ringbuf_destination ~blocking:true producer
   in
   let writer = Tracing_zero.Writer.Expert.create ~destination () in
   repeated_demo 10 writer;
@@ -87,7 +87,7 @@ let%expect_test "ringbuf_non_blocking" =
   done;
   Iobuf.flip_lo expected_buf;
   let (module D) =
-    Tracing_zero.Destinations.ringbuf_destination ~blocking:false producer
+    Tracing_destinations_unix.ringbuf_destination ~blocking:false producer
   in
   (* Record 'a' data to fill the buffer *)
   for _ = 0 to len - 1 do

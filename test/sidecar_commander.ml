@@ -35,7 +35,7 @@ let command =
           with
           | true, false, None, None, false, false -> File file, All_events, By_forking, 1
           | false, true, None, None, false, false ->
-            ( Forward (Tracing_zero.Destinations.file_destination ~filename:file ())
+            ( Forward (Tracing_destinations_unix.file_destination ~filename:file ())
             , All_events
             , By_forking
             , 1 )

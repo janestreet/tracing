@@ -81,6 +81,7 @@ module Tick_translation = Writer_intf.Tick_translation
 
    Writes also occur in [write_string_stream] and [write_from_header_and_get_tsc], both of
    which update [lo] manually. *)
+let[@inline] write_int63 t i = Iobuf.Fill.int64_t_le t.buf (Int63.to_int64 i)
 let[@inline] write_int64 t i = Iobuf.Fill.int64_le t.buf i
 let[@inline] write_int64_t t i = Iobuf.Fill.int64_t_le t.buf i
 
@@ -188,7 +189,7 @@ let num_temp_strs t = t.num_temp_strs
 let write_header t =
   ensure_capacity t 8;
   (* Magic number record *)
-  write_int64 t 0x0016547846040010;
+  write_int64_t t 0x0016547846040010L;
   (* Provider info metadata *)
   let rtype = 0 in
   let name_len = String.length provider_name in
@@ -215,6 +216,17 @@ let write_header t =
   ()
 ;;
 
+let make_tick_translation () =
+  let calibrator = Lazy.force Time_stamp_counter.calibrator in
+  (* Only fails when on a 32 bit platform is detected, which we don't deploy any of *)
+  let mhz_est = (Or_error.ok_exn Time_stamp_counter.Calibrator.cpu_mhz) calibrator in
+  let ticks_per_second = Float.to_int (mhz_est *. 1E6) in
+  let base_tsc = Time_stamp_counter.now () in
+  let base_ticks = base_tsc |> Time_stamp_counter.to_int63 |> Int63.to_int_exn in
+  let base_time = Time_stamp_counter.to_time_ns ~calibrator base_tsc in
+  { Tick_translation.ticks_per_second; base_ticks; base_time }
+;;
+
 let write_tick_initialization t (tick_translation : Tick_translation.t) =
   let rtype = 1 in
   let rsize = 4 in
@@ -222,7 +234,7 @@ let write_tick_initialization t (tick_translation : Tick_translation.t) =
   write_int64 t (rtype lor (rsize lsl 4));
   write_int64 t tick_translation.ticks_per_second;
   write_int64 t tick_translation.base_ticks;
-  write_int64 t (Time_ns.to_int_ns_since_epoch tick_translation.base_time)
+  write_int63 t (Time_ns.to_int63_ns_since_epoch tick_translation.base_time)
 ;;
 
 module Thread_id = struct
@@ -671,11 +683,6 @@ module Expert = struct
 
   module Write_arg_unchecked = Write_arg_unchecked
 end
-
-let create_for_file ?num_temp_strs ~filename () =
-  let destination = Destinations.file_destination ~filename () in
-  Expert.create ?num_temp_strs ~destination ()
-;;
 
 let close t =
   flush t;

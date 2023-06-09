@@ -98,7 +98,7 @@ val create : ?ignore_not_found:bool -> ?buffer:(read, Iobuf.seek) Iobuf.t -> uni
     prepends [prefix] to the buffer, allowing the user to preserve state returned by
     [Parse_error.Incomplete_record]. If the new buffer completes the record, it will
     be returned by the next call to [parse_next]. *)
-val set_buffer : t -> ?prefix:Bytes.t -> (read, Iobuf.seek) Iobuf.t -> unit
+val set_buffer : t -> (read, Iobuf.seek) Iobuf.t -> unit
 
 (** Advance through the trace until we find a Fuchsia record matching one of the record
     types defined above.

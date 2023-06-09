@@ -1,26 +1,16 @@
 open! Core
 
-(** Write to a file using synchronous writes, not suitable for low latency applications. *)
-val direct_file_destination
-  :  ?buffer_size:int
-  -> filename:string
-  -> unit
-  -> (module Writer_intf.Destination)
-
-(** Write to a file in some way with the best available performance. *)
-val file_destination : filename:string -> unit -> (module Writer_intf.Destination)
-
-(** Write to a generic file descriptor. *)
-val fd_destination
-  :  ?buffer_size:int
-  -> fd:Core_unix.File_descr.t
-  -> unit
-  -> (module Writer_intf.Destination)
-
 (** Write to a provided [Iobuf.t], throws an exception if the buffer runs out of space.
     After the [Destination] is closed, sets the window of the [Iobuf.t] to the data
     written. *)
 val iobuf_destination
+  :  (read_write, Iobuf.seek) Iobuf.t
+  -> (module Writer_intf.Destination)
+
+(** Write to a provided [Iobuf.t], throws an exception if the buffer runs out of space.
+    Dynamically updates the window of the [Iobuf.t] as data is written, and does not
+    set the window to the data writen on closure. *)
+val raw_iobuf_destination
   :  (read_write, Iobuf.seek) Iobuf.t
   -> (module Writer_intf.Destination)
 

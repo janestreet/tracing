@@ -61,44 +61,8 @@ module Record = struct
   [@@deriving sexp_of, compare]
 end
 
-module Iobuf_with_prefix = struct
-  type t =
-    { prefix : (read, Iobuf.seek) Iobuf.t
-    ; iobuf : (read, Iobuf.seek) Iobuf.t
-    }
-
-  let length { prefix; iobuf } = Iobuf.length prefix + Iobuf.length iobuf
-
-  let peek_header { prefix; iobuf } =
-    if Iobuf.length prefix = 0
-    then Iobuf.Peek.int64_le_trunc iobuf ~pos:0
-    else Iobuf.Peek.int64_le_trunc prefix ~pos:0
-  ;;
-
-  let to_bytes { prefix; iobuf } =
-    let prefix = Iobuf.sub_shared prefix in
-    let iobuf = Iobuf.sub_shared iobuf in
-    let prefix_len = Iobuf.length prefix in
-    let buf_len = Iobuf.length iobuf in
-    let data = Bytes.create (prefix_len + buf_len) in
-    Iobuf.Consume.To_bytes.blito ~src:prefix ~dst:data ();
-    Iobuf.Consume.To_bytes.blito ~src:iobuf ~dst:data ~dst_pos:prefix_len ();
-    data
-  ;;
-
-  let extract_record { prefix; iobuf } ~len =
-    let plen = Iobuf.length prefix in
-    let out = Iobuf.create ~len in
-    Iobuf.Blit_consume_and_fill.blito ~src:prefix ~dst:out ~src_len:(Int.min plen len) ();
-    let len = len - plen in
-    if len > 0 then Iobuf.Blit_consume_and_fill.blito ~src:iobuf ~dst:out ~src_len:len ();
-    Iobuf.reset out;
-    Iobuf.read_only out
-  ;;
-end
-
 type t =
-  { mutable iobuf : Iobuf_with_prefix.t option
+  { mutable iobuf : (read, Iobuf.seek) Iobuf.t option
   ; mutable cur_record : (read, Iobuf.seek) Iobuf.t
   ; mutable current_provider : int option
   ; provider_name_by_id : string Int.Table.t
@@ -115,9 +79,7 @@ type t =
 [@@deriving fields]
 
 let create ?ignore_not_found ?buffer () =
-  { iobuf =
-      Option.map buffer ~f:(fun iobuf ->
-        { Iobuf_with_prefix.prefix = Iobuf.create ~len:0; iobuf })
+  { iobuf = buffer
   ; cur_record = Iobuf.create ~len:0
   ; current_provider = None
   ; provider_name_by_id = Int.Table.create ()
@@ -133,21 +95,14 @@ let create ?ignore_not_found ?buffer () =
   }
 ;;
 
-let set_buffer t ?prefix iobuf =
-  let prefix =
-    match prefix with
-    | None -> Iobuf.create ~len:0
-    | Some data -> Iobuf.of_bytes data
-  in
-  t.iobuf <- Some { prefix; iobuf }
-;;
+let set_buffer t iobuf = t.iobuf <- Some iobuf
 
 exception Ticks_too_large
 exception Invalid_tick_rate
 exception Invalid_record
 exception String_not_found
 exception Thread_not_found
-exception Incomplete_record of Bytes.t
+exception Incomplete_record
 
 let consume_int32_exn iobuf =
   if Iobuf.length iobuf < 4 then raise Invalid_record else Iobuf.Consume.int32_le iobuf
@@ -492,8 +447,8 @@ let rec parse_until_next_external_record t =
     | None -> raise End_of_file
     | Some iobuf -> iobuf
   in
-  if Iobuf_with_prefix.length iobuf < 8 then raise End_of_file;
-  let header = Iobuf_with_prefix.peek_header iobuf in
+  if Iobuf.length iobuf < 8 then raise End_of_file;
+  let header = Iobuf.Peek.int64_le_trunc iobuf ~pos:0 in
   let rtype = extract_field header ~pos:0 ~size:4 in
   let rsize =
     (* large blob records use a larger length field *)
@@ -504,13 +459,11 @@ let rec parse_until_next_external_record t =
   let rlen = 8 * rsize in
   (* We raise an exception if the current record is split across two iobufs. Subsequent
      calls to parse will attempt to parse this record again. *)
-  if Iobuf_with_prefix.length iobuf < rlen
-  then (
-    let remaining = Iobuf_with_prefix.to_bytes iobuf in
-    raise (Incomplete_record remaining));
+  if Iobuf.length iobuf < rlen then raise Incomplete_record;
   (* Because this happens before parsing, errors thrown when parsing will cause subsequent
      calls to parse to begin with the next record, allowing skipping invalid records. *)
-  t.cur_record <- Iobuf_with_prefix.extract_record iobuf ~len:rlen;
+  t.cur_record <- Iobuf.sub_shared iobuf ~len:rlen;
+  Iobuf.advance iobuf rlen;
   let record =
     match rtype with
     | 0 (* Metadata record *) ->
@@ -536,7 +489,7 @@ let parse_next t =
     Result.return record
   with
   | End_of_file -> Result.fail Parse_error.No_more_words
-  | Incomplete_record remaining -> Result.fail (Parse_error.Incomplete_record remaining)
+  | Incomplete_record -> Result.fail Parse_error.Incomplete_record
   | Ticks_too_large ->
     t.warnings.num_unparsed_records <- t.warnings.num_unparsed_records + 1;
     Result.fail Parse_error.Timestamp_too_large

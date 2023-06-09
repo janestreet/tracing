@@ -1,33 +1,42 @@
 open! Core
 module Writer = Tracing_zero.Writer
 
+let tick_translation = Tracing_probes.For_testing.tick_translation
 let start_args = Writer.Arg_types.create ~int32s:1 ()
 
 let write_with_probes ~n_before ~n_after =
+  let buf_until = Destinations.Buffer_until_initialized.create () in
+  let writer =
+    Writer.Expert.create
+      ~destination:(Destinations.Buffer_until_initialized.to_destination buf_until)
+      ()
+  in
+  Writer.write_tick_initialization writer tick_translation;
+  let _thread = Writer.set_thread_slot writer ~slot:0 ~pid:1 ~tid:2 in
   let probe_begin, probe_end =
-    Tracing_probes.Event.create_duration
+    Tracing_probes.Event.create_duration_for
+      ~writer
       ~arg_types:start_args
       ~category:"test"
       ~name:"foo"
   in
-  let arg_name = Writer.intern_string Tracing_probes.Expert.global_writer "arg" in
+  let arg_name = Writer.intern_string writer "arg" in
   let write_probe_events n =
     for _ = 1 to n do
-      Tracing_probes.Event.write probe_begin;
-      Writer.Expert.Write_arg_unchecked.int32
-        Tracing_probes.Expert.global_writer
-        ~name:arg_name
-        123;
-      Tracing_probes.Event.write probe_end
+      Tracing_probes.Event.write_to writer probe_begin;
+      Writer.Expert.Write_arg_unchecked.int32 writer ~name:arg_name 123;
+      Tracing_probes.Event.write_to writer probe_end
     done
   in
   (* These events get written into a temporary buffer and should be copied over once the
      destination is set. *)
   write_probe_events n_before;
   let buf = Iobuf.create ~len:100_000 in
-  Tracing_probes.Expert.set_destination (Tracing_zero.Destinations.iobuf_destination buf);
+  Destinations.Buffer_until_initialized.set_destination
+    buf_until
+    (Tracing_zero.Destinations.iobuf_destination buf);
   write_probe_events n_after;
-  Tracing_probes.close ();
+  Writer.close writer;
   (* The probes use real rdtsc for ticks and allowing that to be mocked would degrade
      performance, so instead we go back over the buffer and zero out the places we think
      should be timestamps. *)
