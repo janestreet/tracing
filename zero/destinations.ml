@@ -99,7 +99,6 @@ end = struct
       let out_buf = ref (D.next_buf ~ensure_capacity:0) in
       List.iter in_order_buffers ~f:(fun in_buf ->
         Iobuf.flip_lo in_buf;
-        (* Core.print_s [%sexp (in_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]; *)
         let in_buf_len = Iobuf.length in_buf in
         if Iobuf.length !out_buf < in_buf_len
         then out_buf := D.next_buf ~ensure_capacity:in_buf_len;
