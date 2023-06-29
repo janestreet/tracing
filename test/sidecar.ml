@@ -48,31 +48,10 @@ let%expect_test "sidecar_to_file" =
   let tmp_file = "sidecar_to_file_test" in
   let expected_buf = trace_to_buf Tracing_demo.write_demo_trace in
   let%bind () =
-    run_with_tmp tmp_file [ "-to-file" ] (fun () -> compare_output tmp_file expected_buf)
-  in
-  [%expect {||}];
-  Deferred.return ()
-;;
-
-let%expect_test "freestanding_sidecar_to_file" =
-  let open Deferred.Let_syntax in
-  let tmp_file = "freestanding_sidecar_to_file_test" in
-  let expected_buf = trace_to_buf Tracing_demo.write_demo_trace in
-  let%bind () =
-    run_with_tmp tmp_file [ "-freestanding-binary"; "../sidecar/bin/main.exe" ] (fun () ->
-      compare_output tmp_file expected_buf)
-  in
-  [%expect {||}];
-  Deferred.return ()
-;;
-
-let%expect_test "sidecar_forward_to_file" =
-  let open Deferred.Let_syntax in
-  let tmp_file = "sidecar_forward_to_file_test" in
-  let expected_buf = trace_to_buf Tracing_demo.write_demo_trace in
-  let%bind () =
-    run_with_tmp tmp_file [ "-forward-to-file" ] (fun () ->
-      compare_output tmp_file expected_buf)
+    run_with_tmp
+      tmp_file
+      [ "-to-file"; "-freestanding-binary"; "../sidecar/bin/main.exe" ]
+      (fun () -> compare_output tmp_file expected_buf)
   in
   [%expect {||}];
   Deferred.return ()
@@ -101,7 +80,11 @@ let%expect_test "sidecar_buffer_to_file" =
   let%bind () =
     run_with_tmp
       tmp_file
-      [ "-buffer-to-file"; Int.to_string size_bits ]
+      [ "-buffer-to-file"
+      ; Int.to_string size_bits
+      ; "-freestanding-binary"
+      ; "../sidecar/bin/main.exe"
+      ]
       (fun () -> compare_output tmp_file expected_buf)
   in
   [%expect {||}];

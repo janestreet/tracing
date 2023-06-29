@@ -8,7 +8,6 @@ let command =
     [%map_open
       let file = flag "file" (required Command.Param.string) ~doc:"Output filename"
       and to_file = flag "to-file" no_arg ~doc:"Write to file"
-      and forward_to_file = flag "forward-to-file" no_arg ~doc:"Forward to file"
       and buffer_to_file = flag "buffer-to-file" (optional int) ~doc:"INT Buffer to file"
       and freestanding_binary =
         flag
@@ -24,28 +23,21 @@ let command =
           ~doc:"Use exe-server deployed freestanding sidecar"
       in
       fun () ->
-        let (output : Output.t), (write : Write.t), (launch : Launch.t), n =
-          match
-            ( to_file
-            , forward_to_file
-            , buffer_to_file
-            , freestanding_binary
-            , freestanding_appdir
-            , freestanding_exe_server )
-          with
-          | true, false, None, None, false, false -> File file, All_events, By_forking, 1
-          | false, true, None, None, false, false ->
-            ( Forward (Tracing_destinations_unix.file_destination ~filename:file ())
-            , All_events
-            , By_forking
-            , 1 )
-          | false, false, Some buffer_size_bits, None, false, false ->
-            File file, On_request { buffer_size_bits }, By_forking, 10
-          | false, false, None, Some binary, false, false ->
-            File file, All_events, From_binary binary, 1
-          | false, false, None, None, true, false -> File file, All_events, From_appdir, 1
-          | false, false, None, None, false, true ->
-            File file, All_events, From_exe_server, 1
+        let output : Output.t =
+          match to_file, buffer_to_file with
+          | false, Some _ | true, None -> File file
+          | _ -> failwith "Bad arguments."
+        in
+        let (write : Write.t), n =
+          match buffer_to_file with
+          | None -> All_events, 1
+          | Some i -> On_request { buffer_size_bits = i }, 10
+        in
+        let launch : Launch.t =
+          match freestanding_binary, freestanding_appdir, freestanding_exe_server with
+          | Some binary, false, false -> From_binary binary
+          | None, true, false -> From_appdir
+          | None, false, true -> From_exe_server
           | _ -> failwith "Bad arguments."
         in
         let sidecar = start (Config.create ~output ~write ~launch ()) in
