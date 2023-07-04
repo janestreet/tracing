@@ -8,6 +8,9 @@ module Event_type = struct
     | Duration_begin
     | Duration_end
     | Duration_complete of { end_time : Time_ns.Span.t }
+    | Async_begin of { async_correlation_id : int }
+    | Async_instant of { async_correlation_id : int }
+    | Async_end of { async_correlation_id : int }
     | Flow_begin of { flow_correlation_id : int }
     | Flow_step of { flow_correlation_id : int }
     | Flow_end of { flow_correlation_id : int }

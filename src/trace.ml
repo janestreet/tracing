@@ -17,6 +17,7 @@ type t =
   ; base_time : Time_ns.t
   ; mutable next_thread_slot : int
   ; mutable flow_id_counter : int
+  ; mutable async_id_counter : int
   ; mutable counter_id_counter : int
   ; mutable koid_counter : int
   }
@@ -37,6 +38,7 @@ let create ~base_time writer =
   ; base_time
   ; next_thread_slot = 0
   ; flow_id_counter = 0
+  ; async_id_counter = 0
   ; counter_id_counter = 0
   ; koid_counter = 0
   }
@@ -232,6 +234,33 @@ let create_flow t =
 let write_flow_step t flow ~thread ~time =
   let thread = id_for_thread t thread in
   Flow.write_step flow t.writer ~thread ~ticks:(span_to_ticks time)
+;;
+
+module Async = struct
+  type t = int
+end
+
+let create_async t =
+  t.async_id_counter <- t.async_id_counter + 1;
+  t.async_id_counter
+;;
+
+let write_async_begin =
+  writer_adapter TW.write_async_begin (fun write_args writer async_id ->
+    writer ~async_id;
+    write_args ())
+;;
+
+let write_async_instant =
+  writer_adapter TW.write_async_instant (fun write_args writer async_id ->
+    writer ~async_id;
+    write_args ())
+;;
+
+let write_async_end =
+  writer_adapter TW.write_async_end (fun write_args writer async_id ->
+    writer ~async_id;
+    write_args ())
 ;;
 
 let finish_flow t flow = Flow.finish flow t.writer

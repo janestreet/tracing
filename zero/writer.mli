@@ -110,9 +110,7 @@ type 'a event_writer =
   -> ticks:int
   -> 'a
 
-(** An event with a time but no duration
-
-    Note: instant events currently are not visible in the Perfetto UI. *)
+(** An event with a time but no duration. *)
 val write_instant : unit event_writer
 
 (** A counters event uses its arguments to specify "counters" which may be represented
@@ -135,6 +133,15 @@ val write_duration_end : unit event_writer
 
     Takes 3*8 bytes instead of 2*2*8 bytes for separate events, saving 8 bytes per span *)
 val write_duration_complete : (ticks_end:int -> unit) event_writer
+
+(** Begin an async slice. [async_id] disambiguates concurrent contexts. *)
+val write_async_begin : (async_id:int -> unit) event_writer
+
+(** Write an event with a time but no duration associated with an async context. *)
+val write_async_instant : (async_id:int -> unit) event_writer
+
+(** End an async slice. *)
+val write_async_end : (async_id:int -> unit) event_writer
 
 (** Flow events connect enclosing duration events with arrows in the trace viewer.
 

@@ -51,12 +51,22 @@ let%expect_test "parses demo trace" =
        (event_type (Duration_complete (end_time 15ms))))))
     (Ok
      (Event
+      ((timestamp 23ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 2))))
+       (event_type (Async_begin (async_correlation_id 1))))))
+    (Ok
+     (Event
       ((timestamp 2ms) (thread 1) (category 0) (name 0) (arguments ())
        (event_type (Flow_begin (flow_correlation_id 1))))))
     (Ok
      (Event
       ((timestamp 17ms) (thread 1) (category 121) (name 122) (arguments ())
        (event_type Instant))))
+    (Ok
+     (Event
+      ((timestamp 24ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1))))
+       (event_type (Async_begin (async_correlation_id 2))))))
     (Ok
      (Event
       ((timestamp 20ms) (thread 1) (category 121) (name 122) (arguments ())
@@ -73,12 +83,32 @@ let%expect_test "parses demo trace" =
        (event_type Duration_end))))
     (Ok
      (Event
+      ((timestamp 25ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1))))
+       (event_type (Async_instant (async_correlation_id 2))))))
+    (Ok
+     (Event
+      ((timestamp 26ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 2))))
+       (event_type (Async_instant (async_correlation_id 1))))))
+    (Ok
+     (Event
       ((timestamp 20ms) (thread 1) (category 0) (name 0) (arguments ())
        (event_type (Flow_end (flow_correlation_id 1))))))
     (Ok
      (Event
       ((timestamp 7ms) (thread 1) (category 121) (name 122)
        (arguments ((121 (Int 1)))) (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 29ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 2))))
+       (event_type (Async_end (async_correlation_id 1))))))
+    (Ok
+     (Event
+      ((timestamp 31ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1))))
+       (event_type (Async_end (async_correlation_id 2))))))
     (Ok
      (Event
       ((timestamp 20ms) (thread 1) (category 121) (name 122)

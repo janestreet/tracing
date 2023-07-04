@@ -415,6 +415,15 @@ let parse_event_record t =
     | 4 ->
       let end_time_tick = consume_int64_trunc_exn t.cur_record in
       Some (Duration_complete { end_time = event_tick_to_span t end_time_tick })
+    | 5 ->
+      let async_correlation_id = consume_int64_trunc_exn t.cur_record in
+      Some (Async_begin { async_correlation_id })
+    | 6 ->
+      let async_correlation_id = consume_int64_trunc_exn t.cur_record in
+      Some (Async_instant { async_correlation_id })
+    | 7 ->
+      let async_correlation_id = consume_int64_trunc_exn t.cur_record in
+      Some (Async_end { async_correlation_id })
     | 8 ->
       let flow_correlation_id = consume_int64_trunc_exn t.cur_record in
       Some (Flow_begin { flow_correlation_id })

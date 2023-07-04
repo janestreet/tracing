@@ -8,6 +8,7 @@ module Trace = Tracing.Trace
     This function is in this module instead of the tests so that there can be an
     `app/tracing` command to write out the demo trace and validate it reads correctly
     in Perfetto. *)
+
 let write_demo_trace t =
   let base_time = Time_ns.of_int_ns_since_epoch 1 in
   let tick_translation = { TW.Tick_translation.epoch_ns with base_time } in
@@ -40,6 +41,15 @@ let write_demo_trace t =
     ~ticks_end:15_000_000;
   TW.Write_arg.string t ~name temp_str;
   TW.Write_arg.string t ~name:category temp_str2;
+  TW.write_async_begin
+    t
+    ~arg_types:(TW.Arg_types.create ~int32s:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:23_000_000
+    ~async_id:1;
+  TW.Write_arg.int32 t ~name:category 2;
   (* This flow event is out of time order to match the way the helper library writes
      flow events by buffering them until the next event in order to know which type
      of flow event should be emitted. *)
@@ -51,6 +61,15 @@ let write_demo_trace t =
     ~category
     ~name
     ~ticks:17_000_000;
+  TW.write_async_begin
+    t
+    ~arg_types:(TW.Arg_types.create ~strings:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:24_000_000
+    ~async_id:2;
+  TW.Write_arg.int32 t ~name:category 1;
   TW.write_duration_begin
     t
     ~arg_types:TW.Arg_types.none
@@ -69,6 +88,24 @@ let write_demo_trace t =
   TW.Write_arg.int63 t ~name Int.min_value;
   TW.Write_arg.int32 t ~name:category (-1);
   TW.Write_arg.float t ~name:proc_name (-1.0);
+  TW.write_async_instant
+    t
+    ~arg_types:(TW.Arg_types.create ~int32s:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:25_000_000
+    ~async_id:2;
+  TW.Write_arg.int32 t ~name:category 1;
+  TW.write_async_instant
+    t
+    ~arg_types:(TW.Arg_types.create ~int32s:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:26_000_000
+    ~async_id:1;
+  TW.Write_arg.int32 t ~name:category 2;
   TW.write_flow_end t ~thread ~ticks:20_000_000 ~flow_id:1;
   TW.write_counter
     t
@@ -78,6 +115,24 @@ let write_demo_trace t =
     ~name
     ~ticks:7_000_000
     ~counter_id:1;
+  TW.Write_arg.int32 t ~name:category 1;
+  TW.write_async_end
+    t
+    ~arg_types:(TW.Arg_types.create ~int32s:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:29_000_000
+    ~async_id:1;
+  TW.Write_arg.int32 t ~name:category 2;
+  TW.write_async_end
+    t
+    ~arg_types:(TW.Arg_types.create ~int32s:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:31_000_000
+    ~async_id:2;
   TW.Write_arg.int32 t ~name:category 1;
   TW.write_counter
     t
@@ -126,7 +181,7 @@ let write_demo_trace_high_level writer =
     ~time:(time_for_us 10)
     ~time_end:(time_for_us 5_000);
   let flow = Trace.create_flow trace in
-  Trace.write_flow_step trace flow ~thread ~time:(time_for_us 2_000);
+  let async_id = Trace.create_async trace in
   Trace.write_duration_complete
     trace
     ~args:Trace.Arg.[ name, String "wow"; category, String "cool" ]
@@ -135,8 +190,26 @@ let write_demo_trace_high_level writer =
     ~name
     ~time:(time_for_us 7_000)
     ~time_end:(time_for_us 15_000);
+  Trace.write_flow_step trace flow ~thread ~time:(time_for_us 2_000);
+  Trace.write_async_begin
+    trace
+    async_id
+    ~thread
+    ~args:Trace.Arg.[ "stuff", Int 2 ]
+    ~category
+    ~name
+    ~time:(time_for_us 23_000);
   Trace.write_flow_step trace flow ~thread ~time:(time_for_us 15_000);
   Trace.write_instant trace ~args:[] ~thread ~category ~name ~time:(time_for_us 17_000);
+  let async_id2 = Trace.create_async trace in
+  Trace.write_async_begin
+    trace
+    async_id2
+    ~thread
+    ~args:Trace.Arg.[ "stuff", Int 1 ]
+    ~category
+    ~name
+    ~time:(time_for_us 24_000);
   Trace.write_duration_begin
     trace
     ~args:[]
@@ -154,6 +227,22 @@ let write_demo_trace_high_level writer =
     ~category
     ~name
     ~time:(time_for_us 40_000);
+  Trace.write_async_instant
+    trace
+    async_id2
+    ~thread
+    ~args:Trace.Arg.[ "stuff", Int 1 ]
+    ~category
+    ~name
+    ~time:(time_for_us 25_000);
+  Trace.write_async_instant
+    trace
+    async_id
+    ~thread
+    ~args:Trace.Arg.[ "stuff", Int 2 ]
+    ~category
+    ~name
+    ~time:(time_for_us 26_000);
   Trace.finish_flow trace flow;
   Trace.write_counter
     trace
@@ -162,6 +251,22 @@ let write_demo_trace_high_level writer =
     ~category
     ~name
     ~time:(time_for_us 7_000);
+  Trace.write_async_end
+    trace
+    async_id
+    ~args:Trace.Arg.[ "stuff", Int 2 ]
+    ~thread
+    ~category
+    ~name
+    ~time:(time_for_us 29_000);
+  Trace.write_async_end
+    trace
+    async_id2
+    ~args:Trace.Arg.[ "stuff", Int 1 ]
+    ~thread
+    ~category
+    ~name
+    ~time:(time_for_us 31_000);
   Trace.write_counter
     trace
     ~args:Trace.Arg.[ "stuff", Float 2.5 ]

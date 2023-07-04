@@ -71,6 +71,19 @@ let process_event t (event : Parser.Event.t) =
        ~name
        ~ticks
        ~ticks_end
+   | Async_begin { async_correlation_id = async_id } ->
+     Writer.write_async_begin t.writer ~arg_types ~thread ~category ~name ~ticks ~async_id
+   | Async_instant { async_correlation_id = async_id } ->
+     Writer.write_async_instant
+       t.writer
+       ~arg_types
+       ~thread
+       ~category
+       ~name
+       ~ticks
+       ~async_id
+   | Async_end { async_correlation_id = async_id } ->
+     Writer.write_async_end t.writer ~arg_types ~thread ~category ~name ~ticks ~async_id
    | Flow_begin { flow_correlation_id = flow_id } ->
      Writer.write_flow_begin t.writer ~thread ~ticks ~flow_id
    | Flow_step { flow_correlation_id = flow_id } ->

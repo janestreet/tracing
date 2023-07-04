@@ -33,7 +33,7 @@ let%expect_test "buffer output preserves data" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (target_buf1 : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {| expected size 640, got sizes 640 and 640 |}]
+  [%expect {| expected size 832, got sizes 832 and 832 |}]
 ;;
 
 let%expect_test "buffer one side" =
@@ -57,7 +57,7 @@ let%expect_test "buffer one side" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (target_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {| expected size 640, got size 640 |}]
+  [%expect {| expected size 832, got size 832 |}]
 ;;
 
 let%expect_test "buffer two sides" =
@@ -81,7 +81,7 @@ let%expect_test "buffer two sides" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (target_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {| expected size 640, got size 640 |}]
+  [%expect {| expected size 832, got size 832 |}]
 ;;
 
 let%expect_test "buffer preserves required state after dropping events" =
@@ -113,49 +113,16 @@ let%expect_test "buffer preserves required state after dropping events" =
    (Ok
     (Tick_initialization (ticks_per_second 1000000000)
      (base_time ((1969-12-31 19:00:00.000000001-05:00)))))
-   (Ok (Interned_string (index 20) (value wow)))
-   (Ok (Interned_string (index 155) (value myproc)))
-   (Ok (Interned_string (index 21) (value cool)))
-   (Ok (Interned_string (index 157) (value stuff)))
-   (Ok
-    (Interned_thread (index 1)
-     (value ((pid 1) (tid 2) (process_name ()) (thread_name ())))))
    (Ok (Interned_string (index 157) (value stuff)))
    (Ok (Interned_string (index 158) (value my_funct)))
    (Ok
-    (Event
-     ((timestamp 10us) (thread 1) (category 157) (name 158)
-      (arguments ((158 (String 157))))
-      (event_type (Duration_complete (end_time 5ms))))))
-   (Ok (Interned_string (index 20) (value wow)))
-   (Ok (Interned_string (index 21) (value cool)))
+    (Interned_thread (index 1)
+     (value ((pid 1) (tid 2) (process_name ()) (thread_name ())))))
    (Ok
     (Event
-     ((timestamp 7ms) (thread 1) (category 157) (name 158)
-      (arguments ((158 (String 20)) (157 (String 21))))
-      (event_type (Duration_complete (end_time 15ms))))))
-   (Ok
-    (Event
-     ((timestamp 2ms) (thread 1) (category 0) (name 0) (arguments ())
-      (event_type (Flow_begin (flow_correlation_id 1))))))
-   (Ok
-    (Event
-     ((timestamp 17ms) (thread 1) (category 157) (name 158) (arguments ())
-      (event_type Instant))))
-   (Ok
-    (Event
-     ((timestamp 20ms) (thread 1) (category 157) (name 158) (arguments ())
-      (event_type Duration_begin))))
-   (Ok
-    (Event
-     ((timestamp 15ms) (thread 1) (category 0) (name 0) (arguments ())
-      (event_type (Flow_step (flow_correlation_id 1))))))
-   (Ok
-    (Event
-     ((timestamp 40ms) (thread 1) (category 157) (name 158)
-      (arguments
-       ((158 (Int -4611686018427387904)) (157 (Int -1)) (155 (Float -1))))
-      (event_type Duration_end))))
+     ((timestamp 26ms) (thread 1) (category 157) (name 158)
+      (arguments ((157 (Int 2))))
+      (event_type (Async_instant (async_correlation_id 1))))))
    (Ok
     (Event
      ((timestamp 20ms) (thread 1) (category 0) (name 0) (arguments ())
@@ -164,6 +131,16 @@ let%expect_test "buffer preserves required state after dropping events" =
     (Event
      ((timestamp 7ms) (thread 1) (category 157) (name 158)
       (arguments ((157 (Int 1)))) (event_type (Counter (id 1))))))
+   (Ok
+    (Event
+     ((timestamp 29ms) (thread 1) (category 157) (name 158)
+      (arguments ((157 (Int 2))))
+      (event_type (Async_end (async_correlation_id 1))))))
+   (Ok
+    (Event
+     ((timestamp 31ms) (thread 1) (category 157) (name 158)
+      (arguments ((157 (Int 1))))
+      (event_type (Async_end (async_correlation_id 2))))))
    (Ok
     (Event
      ((timestamp 20ms) (thread 1) (category 157) (name 158)
@@ -205,7 +182,7 @@ let%expect_test "buffer resize" =
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (target_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
   [%expect {|
-    expected size 640, got size 640 |}]
+    expected size 832, got size 832 |}]
 ;;
 
 let%expect_test "buffer resize clears data but leaves state" =
@@ -237,7 +214,7 @@ let%expect_test "buffer resize clears data but leaves state" =
   Trace_test_helpers.print_records_until_error parser;
   [%expect
     {|
-    expected size 640, got size 840
+    expected size 832, got size 1032
     (Ok (Interned_string (index 1) (value process)))
     (Ok
      (Tick_initialization (ticks_per_second 1000000000)
@@ -279,12 +256,22 @@ let%expect_test "buffer resize clears data but leaves state" =
        (event_type (Duration_complete (end_time 15ms))))))
     (Ok
      (Event
+      ((timestamp 23ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 2))))
+       (event_type (Async_begin (async_correlation_id 1))))))
+    (Ok
+     (Event
       ((timestamp 2ms) (thread 1) (category 0) (name 0) (arguments ())
        (event_type (Flow_begin (flow_correlation_id 1))))))
     (Ok
      (Event
       ((timestamp 17ms) (thread 1) (category 121) (name 122) (arguments ())
        (event_type Instant))))
+    (Ok
+     (Event
+      ((timestamp 24ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1))))
+       (event_type (Async_begin (async_correlation_id 2))))))
     (Ok
      (Event
       ((timestamp 20ms) (thread 1) (category 121) (name 122) (arguments ())
@@ -301,12 +288,32 @@ let%expect_test "buffer resize clears data but leaves state" =
        (event_type Duration_end))))
     (Ok
      (Event
+      ((timestamp 25ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1))))
+       (event_type (Async_instant (async_correlation_id 2))))))
+    (Ok
+     (Event
+      ((timestamp 26ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 2))))
+       (event_type (Async_instant (async_correlation_id 1))))))
+    (Ok
+     (Event
       ((timestamp 20ms) (thread 1) (category 0) (name 0) (arguments ())
        (event_type (Flow_end (flow_correlation_id 1))))))
     (Ok
      (Event
       ((timestamp 7ms) (thread 1) (category 121) (name 122)
        (arguments ((121 (Int 1)))) (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 29ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 2))))
+       (event_type (Async_end (async_correlation_id 1))))))
+    (Ok
+     (Event
+      ((timestamp 31ms) (thread 1) (category 121) (name 122)
+       (arguments ((121 (Int 1))))
+       (event_type (Async_end (async_correlation_id 2))))))
     (Ok
      (Event
       ((timestamp 20ms) (thread 1) (category 121) (name 122)

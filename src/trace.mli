@@ -181,6 +181,38 @@ val write_flow_step : t -> Flow.t -> thread:Thread.t -> time:Time_ns.Span.t -> u
 *)
 val finish_flow : t -> Flow.t -> unit
 
+module Async : sig
+  type t [@@immediate]
+end
+
+(** Async slices are similar to duration slices, but need to be uniquely identifiable
+    since they can overlap like this:
+    {v
+    [ ---------- async_f --------------- ]
+
+            [ ---------- async_f --------------- ]
+    v}
+    which would be (naively) interpreted as
+    {v
+    [ ---------- async_f ----------------------- ]
+            [ ---------- async_f --------]
+    v}
+*)
+val create_async : t -> Async.t
+
+(** Begin an async slice with a given id which will have a corresponding end.
+
+    An "async slice" starts and ends at different times but has a single name, category,
+    and id. It shows up as a bar between the start and end time in UIs.
+*)
+val write_async_begin : (Async.t -> unit) event_writer
+
+(** An event with a time but no duration within the async slice with matching id. *)
+val write_async_instant : (Async.t -> unit) event_writer
+
+(** Ends an async slice with matching id, name, and category.  *)
+val write_async_end : (Async.t -> unit) event_writer
+
 module Expert : sig
   (** Wraps a [Tracing_zero.Writer.t] to keep track of IDs and interned strings
 

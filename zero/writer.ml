@@ -323,6 +323,9 @@ module Event_type = struct
   let duration_begin = 2
   let duration_end = 3
   let duration_complete = 4
+  let async_begin = 5
+  let async_instant = 6
+  let async_end = 7
   let flow_begin = 8
   let flow_step = 9
   let flow_end = 10
@@ -376,6 +379,27 @@ let write_duration_complete t ~arg_types ~thread ~category ~name ~ticks ~ticks_e
   let writer = write_event t ~event_type:Event_type.duration_complete ~extra_words:1 in
   writer ~arg_types ~thread ~category ~name ~ticks;
   t.word_to_flush <- ticks_end;
+  t.pending_word <- true
+;;
+
+let write_async_begin t ~arg_types ~thread ~category ~name ~ticks ~async_id =
+  let writer = write_event t ~event_type:Event_type.async_begin ~extra_words:1 in
+  writer ~arg_types ~thread ~category ~name ~ticks;
+  t.word_to_flush <- async_id;
+  t.pending_word <- true
+;;
+
+let write_async_instant t ~arg_types ~thread ~category ~name ~ticks ~async_id =
+  let writer = write_event t ~event_type:Event_type.async_instant ~extra_words:1 in
+  writer ~arg_types ~thread ~category ~name ~ticks;
+  t.word_to_flush <- async_id;
+  t.pending_word <- true
+;;
+
+let write_async_end t ~arg_types ~thread ~category ~name ~ticks ~async_id =
+  let writer = write_event t ~event_type:Event_type.async_end ~extra_words:1 in
+  writer ~arg_types ~thread ~category ~name ~ticks;
+  t.word_to_flush <- async_id;
   t.pending_word <- true
 ;;
 
