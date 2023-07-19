@@ -1,0 +1,4 @@
+(executables (names sync_demo)
+ (libraries core_unix.command_unix core file_path filesystem_core magic_trace
+  segment_remapper core_unix.sys_unix tracing_introspection tracing_probes)
+ (preprocess (pps ppx_tracing ppx_jane)))

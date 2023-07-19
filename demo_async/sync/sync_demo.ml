@@ -7,6 +7,9 @@ let process_directory dir_path =
     | None -> total_size
     | Some path ->
       let stat = Filesystem_core.stat path in
+      [%trace.begin "demo" "manual"];
+      let[@trace "demo" "auto"] () = Core_unix.sleep 1 in
+      [%trace.end "demo" "manual"];
       (match stat.kind with
        | Regular ->
          let num_bytes = Int63.to_int stat.size |> Option.value ~default:0 in
@@ -32,7 +35,7 @@ let main ~dir =
 let filename =
   let pid = Core_unix.getpid () in
   (Lazy.force Filesystem_core.executable_name |> File_path.dirname_exn)
-  /?^ [%string "ppx-trace-%{pid#Pid}"]
+  /?/ ~/[%string "ppx-trace-%{pid#Pid}"]
 ;;
 
 let () =

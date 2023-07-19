@@ -59,6 +59,43 @@ module Record = struct
         ; base_time : Time_ns.Option.t
         }
   [@@deriving sexp_of, compare]
+
+  let sexp_of_t t =
+    let sexp = sexp_of_t t in
+    if am_running_test
+    then (
+      let remove_source_ref s =
+        let len = String.length s in
+        let buf = Core.Buffer.create len in
+        let rec loop i inside =
+          if i < len
+          then (
+            let c = s.[i] in
+            match c, inside with
+            | '(', false ->
+              Core.Buffer.add_char buf '(';
+              Core.Buffer.add_string buf "$$$";
+              loop (i + 1) true
+            | ')', true ->
+              Core.Buffer.add_char buf ')';
+              loop (i + 1) false
+            | _, true -> loop (i + 1) true
+            | _, false ->
+              Core.Buffer.add_char buf c;
+              loop (i + 1) false)
+        in
+        loop 0 false;
+        Core.Buffer.contents buf
+      in
+      let rec remove_source_refs = function
+        | Sexp.Atom a -> Sexp.Atom a
+        | List [ Atom "value"; Atom str ] when String.contains str '(' ->
+          List [ Atom "value"; Atom (remove_source_ref str) ]
+        | List l -> List (List.map l ~f:remove_source_refs)
+      in
+      remove_source_refs sexp)
+    else sexp
+  ;;
 end
 
 type t =

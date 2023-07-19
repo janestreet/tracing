@@ -61,6 +61,7 @@ type t =
   ; mutable destination : (module Destination)
   ; mutable next_thread_id : int
   ; mutable next_string_id : int
+  ; mutable next_async_id : int
   ; mutable num_temp_strs : int
   ; mutable pending_args : Header_template.t
   ; mutable word_to_flush : int
@@ -553,11 +554,13 @@ module Expert = struct
     let (module D : Destination) = destination in
     let ensure_capacity = 8 in
     let buf = D.next_buf ~ensure_capacity in
+    (* [next_async_id] starts at 1 since 0 is reserved for stray [Async_instant]s. *)
     let t =
       { buf
       ; destination
       ; next_thread_id = Thread_id.first
       ; next_string_id = first_real_string
+      ; next_async_id = 1
       ; num_temp_strs
       ; pending_args = Header_template.none
       ; word_to_flush = 0
@@ -697,6 +700,23 @@ module Expert = struct
     if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
     then refresh_buf t ticks;
     ticks
+  ;;
+
+  let[@inline] write_async_id t id =
+    (* Using [unsafe_set_int64_t_le] as in [write_from_header_and_get_tsc].
+       See justification there; async_id has a fixed size of 8 bytes. *)
+    ensure_capacity_no_flush t 8;
+    let pos = Iobuf.Expert.lo t.buf in
+    let bstr = Iobuf.Expert.buf t.buf in
+    let final_pos = pos + 8 in
+    Iobuf.Expert.set_lo t.buf final_pos;
+    Bigstring.unsafe_set_int64_t_le bstr ~pos (Int.to_int64 id)
+  ;;
+
+  let create_async_id t =
+    let id = t.next_async_id in
+    t.next_async_id <- id + 1;
+    id
   ;;
 
   let write_from_header_with_tsc t ~header =

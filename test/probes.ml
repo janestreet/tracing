@@ -14,8 +14,9 @@ let write_with_probes ~n_before ~n_after =
   Writer.write_tick_initialization writer tick_translation;
   let _thread = Writer.set_thread_slot writer ~slot:0 ~pid:1 ~tid:2 in
   let probe_begin, probe_end =
-    Tracing_probes.Event.create_duration_for
+    Tracing_probes.Event.For_testing.create_span_for
       ~writer
+      ~async:false
       ~arg_types:start_args
       ~category:"test"
       ~name:"foo"

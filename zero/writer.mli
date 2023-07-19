@@ -216,6 +216,9 @@ module Expert : sig
     val duration_begin : t
     val duration_end : t
     val duration_complete : t
+    val async_begin : t
+    val async_end : t
+    val async_instant : t
     val flow_begin : t
     val flow_step : t
     val flow_end : t
@@ -260,6 +263,12 @@ module Expert : sig
   (** Unchecked writing of the result of [write_from_header_and_get_tsc] after
       the arguments. *)
   val write_tsc : t -> Time_stamp_counter.t -> unit
+
+  (** Unchecked write of a correlation id to complete an async event. *)
+  val write_async_id : t -> int -> unit
+
+  (** Get the next async correlation id *)
+  val create_async_id : t -> int
 
   (** Unchecked versions of the [Write_arg] functions that can result in invalid traces. *)
   module Write_arg_unchecked :

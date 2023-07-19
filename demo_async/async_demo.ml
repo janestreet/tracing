@@ -2,8 +2,14 @@ open! Core
 open Async
 open File_path.Operators
 
-let[@trace "demo" "process"] rec process_directory path =
+let[@trace.async
+  "demo"
+    "process"
+    ~path:(Tracing_probes.Expert.intern_string (File_path.to_string path) : string)] rec process_directory
+                                                                                           path
+  =
   let%bind stat = Filesystem_async.stat path in
+  [%trace.async_instant "demo" "stat"];
   let num_bytes = Int63.to_int stat.size |> Option.value ~default:0 in
   match stat.kind with
   | Regular ->
@@ -14,7 +20,8 @@ let[@trace "demo" "process"] rec process_directory path =
     let%bind files = Filesystem_async.ls_dir path in
     let%bind entry_sizes =
       Deferred.List.map ~how:(`Max_concurrent_jobs 10) files ~f:(fun file ->
-        process_directory (path /?. file))
+        let res = process_directory (path /?. file) in
+        res)
     in
     return (List.fold entry_sizes ~init:0 ~f:( + ))
   | _ -> return 0
@@ -28,7 +35,7 @@ let main ~dir =
 let filename =
   let pid = Core_unix.getpid () in
   (Lazy.force Filesystem_async.executable_name |> File_path.dirname_exn)
-  /?^ [%string "ppx-trace-%{pid#Pid}"]
+  /?/ ~/[%string "ppx-trace-%{pid#Pid}"]
 ;;
 
 let () =
@@ -51,6 +58,7 @@ let () =
              ~write:All_events
              ~allow_gigatext:true
              ();
-           let%map () = main ~dir in
-           Tracing_probes.close ()])
+           let%bind () = main ~dir in
+           let%bind () = Async.Scheduler.yield_until_no_jobs_remain () in
+           return (Tracing_probes.close ())])
 ;;
