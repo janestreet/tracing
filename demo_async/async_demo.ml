@@ -39,7 +39,6 @@ let filename =
 ;;
 
 let () =
-  Tracing_probes.Probes.(enable ~category:(Category.of_string "demo") ());
   Command_unix.run
     (Command.async
        ~summary:"write trace"
@@ -51,6 +50,7 @@ let () =
            flag "-dir" (required File_path.arg_type) ~doc:"Directory to traverse"
          in
          fun () ->
+           Tracing_probes.Probes.(enable ~category:(Category.of_string "demo") ());
            print_s [%message (filename : File_path.t)];
            Tracing_probes.start_with_sidecar
              ~launch:From_appdir

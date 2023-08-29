@@ -113,7 +113,7 @@ type t =
   ; warnings : Warnings.t
   ; raise_on_not_found : bool
   }
-[@@deriving fields]
+[@@deriving fields ~getters]
 
 let create ?ignore_not_found ?buffer () =
   { iobuf = buffer
