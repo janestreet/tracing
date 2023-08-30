@@ -53,8 +53,8 @@ module Event = struct
     ; thread : Thread.t (* Each event has exactly 5 arguments. *)
     ; args :
         (Arg.t list
-         [@quickcheck.generator
-           Generator.list_with_length Arg.quickcheck_generator ~length:5])
+        [@quickcheck.generator
+          Generator.list_with_length Arg.quickcheck_generator ~length:5])
     }
   [@@deriving sexp, quickcheck]
 end
@@ -64,8 +64,8 @@ end
 module Trace_output = struct
   type t =
     (Event.t list
-     [@quickcheck.generator
-       Generator.list_with_length Event.quickcheck_generator ~length:50])
+    [@quickcheck.generator
+      Generator.list_with_length Event.quickcheck_generator ~length:50])
   [@@deriving sexp, quickcheck]
 end
 
@@ -153,13 +153,13 @@ let%test_unit "quickcheck round trips" =
     ~sexp_of:Trace_output.sexp_of_t
     Trace_output.quickcheck_generator
     ~f:(fun events ->
-      let expected_buf = Trace_test_helpers.trace_to_buf (write_expected_trace ~events) in
-      let expected_buf_str = Iobuf.to_string expected_buf in
-      let parser = Tracing.Parser.create ~buffer:(Iobuf.read_only expected_buf) () in
-      let num_temp_strs = TW.String_id.max_number_of_temp_string_slots in
-      let new_buf =
-        Trace_test_helpers.trace_to_buf ~num_temp_strs (write_new_trace ~parser)
-      in
-      let new_buf_str = Iobuf.to_string new_buf in
-      [%test_result: string] new_buf_str ~expect:expected_buf_str)
+    let expected_buf = Trace_test_helpers.trace_to_buf (write_expected_trace ~events) in
+    let expected_buf_str = Iobuf.to_string expected_buf in
+    let parser = Tracing.Parser.create ~buffer:(Iobuf.read_only expected_buf) () in
+    let num_temp_strs = TW.String_id.max_number_of_temp_string_slots in
+    let new_buf =
+      Trace_test_helpers.trace_to_buf ~num_temp_strs (write_new_trace ~parser)
+    in
+    let new_buf_str = Iobuf.to_string new_buf in
+    [%test_result: string] new_buf_str ~expect:expected_buf_str)
 ;;

@@ -3,10 +3,10 @@ open Async
 open File_path.Operators
 
 let[@trace.async
-  "demo"
-    "process"
-    ~path:(Tracing_probes.Expert.intern_string (File_path.to_string path) : string)] rec process_directory
-                                                                                           path
+     "demo"
+       "process"
+       ~path:(Tracing_probes.Expert.intern_string (File_path.to_string path) : string)] rec process_directory
+  path
   =
   let%bind stat = Filesystem_async.stat path in
   [%trace.async_instant "demo" "stat"];

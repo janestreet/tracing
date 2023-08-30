@@ -4,7 +4,7 @@ module Writer = Tracing_zero.Writer
 
 type t =
   { writer : Writer.t
-  (* We store mappings from parser string/thread slots to writer string/thread slots. *)
+      (* We store mappings from parser string/thread slots to writer string/thread slots. *)
   ; string_ids : Writer.String_id.t Hashtbl.M(Parser.String_index).t
   ; thread_ids : Writer.Thread_id.t Hashtbl.M(Parser.Thread_index).t
   }

@@ -43,7 +43,7 @@ module State = struct
   type t =
     { strings : string Hashtbl.M(Parser.String_index).t (** Interned strings *)
     ; threads : Parser.Thread.t Hashtbl.M(Parser.Thread_index).t
-    (** Interned thread IDs *)
+        (** Interned thread IDs *)
     ; thread_names : Parser.String_index.t Hashtbl.M(Thread).t
     ; process_names : Parser.String_index.t Hashtbl.M(Process).t
     ; mutable ticks : Ticks.t option
@@ -222,7 +222,7 @@ type t =
   ; parser : Parser.t
   ; errors : Parser_errors.t
   ; mutable empty : bool
-  (* Store two checkpoints as a double buffer. When a dump is requested, we will
+      (* Store two checkpoints as a double buffer. When a dump is requested, we will
      always be able to output all of [prev], even if [current] was just started. *)
   ; mutable prev : Checkpoint.t
   ; mutable current : Checkpoint.t
