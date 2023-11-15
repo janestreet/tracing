@@ -10,8 +10,8 @@ let repeated_demo n writer =
 let make_ring file bits =
   let filename_prefix = Filename.temp_dir_name ^/ file in
   let filename = Ringbuf.create_mkstemp ~size_bits:bits ~filename_prefix in
-  let producer = Ringbuf.Producer.create ~filename ~prefault:false in
-  let consumer = Ringbuf.Consumer.create ~filename ~prefault:false in
+  let producer = Ringbuf.Producer.of_file ~prefault:false filename in
+  let consumer = Ringbuf.Consumer.of_file ~prefault:false filename in
   producer, consumer
 ;;
 
