@@ -1,4 +1,7 @@
-(library (name tracing_tool_output) (public_name tracing.tool_output)
+(library
+ (name tracing_tool_output)
+ (public_name tracing.tool_output)
  (libraries async core core_kernel.iobuf core_unix.time_ns_unix
-  tracing_destinations_unix tracing_zero)
- (preprocess (pps ppx_jane)))
+   tracing_destinations_unix tracing_zero)
+ (preprocess
+  (pps ppx_jane)))

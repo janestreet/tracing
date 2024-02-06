@@ -1,4 +1,7 @@
-(library (name tracing) (public_name tracing)
+(library
+ (name tracing)
+ (public_name tracing)
  (libraries core core_kernel.iobuf tracing_destinations_unix
-  core_unix.time_ns_unix tracing_zero)
- (preprocess (pps ppx_jane)))
+   core_unix.time_ns_unix tracing_zero)
+ (preprocess
+  (pps ppx_jane)))

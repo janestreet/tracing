@@ -1,5 +1,8 @@
-(executables (names async_demo)
+(executables
+ (modes byte exe)
+ (names async_demo)
  (libraries async core_unix.command_unix core file_path filesystem_async
-  filesystem_core magic_trace segment_remapper core_unix.sys_unix
-  tracing_introspection tracing_probes)
- (preprocess (pps ppx_tracing -async ppx_jane)))
+   filesystem_core magic_trace segment_remapper core_unix.sys_unix
+   tracing_introspection tracing_probes)
+ (preprocess
+  (pps ppx_tracing -async ppx_jane)))
