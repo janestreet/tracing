@@ -124,7 +124,8 @@ let%expect_test "parses demo trace" =
        (arguments ((121 (Pointer 0x7fffffffffffffff))))
        (event_type (Counter (id 1))))))
     (Error No_more_words)
-    ((num_unparsed_records 0) (num_unparsed_args 0)) |}]
+    ((num_unparsed_records 0) (num_unparsed_args 0))
+    |}]
 ;;
 
 let%expect_test "parser reports record incomplete" =
@@ -146,13 +147,14 @@ let%expect_test "parser reports record incomplete" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error Incomplete_record)\n\
-    \    ((num_unparsed_records 0) (num_unparsed_args 0))"];
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Error Incomplete_record)\n\
+    \ ((num_unparsed_records 0) (num_unparsed_args 0))\n\
+    \ "];
   (* The first 8 bytes of the instant event record should be unparsed. *)
   [%test_result: int] (Iobuf.length buf) ~expect:8;
   (* After resetting the iobuf to include the last 8 bytes, the trace should parse with no
@@ -161,13 +163,14 @@ let%expect_test "parser reports record incomplete" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok\n\
-    \     (Event\n\
-    \      ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
-    \       (event_type Instant))))\n\
-    \    (Error No_more_words)\n\
-    \    ((num_unparsed_records 0) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok\n\
+    \  (Event\n\
+    \   ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
+    \    (event_type Instant))))\n\
+    \ (Error No_more_words)\n\
+    \ ((num_unparsed_records 0) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parser continues with prefix after record incomplete" =
@@ -191,13 +194,14 @@ let%expect_test "parser continues with prefix after record incomplete" =
    | _ -> failwith "Got error other than Incomplete_record!");
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error Incomplete_record)\n\
-    \    ((num_unparsed_records 0) (num_unparsed_args 0))"];
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Error Incomplete_record)\n\
+    \ ((num_unparsed_records 0) (num_unparsed_args 0))\n\
+    \ "];
   (* The first 8 bytes of the instant event record should be unparsed. *)
   [%test_result: int] (Iobuf.length buf) ~expect:8;
   (* Using the remaining bytes as a prefix and the missing bytes as a new buffer,
@@ -206,13 +210,14 @@ let%expect_test "parser continues with prefix after record incomplete" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok\n\
-    \     (Event\n\
-    \      ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
-    \       (event_type Instant))))\n\
-    \    (Error No_more_words)\n\
-    \    ((num_unparsed_records 0) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok\n\
+    \  (Event\n\
+    \   ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
+    \    (event_type Instant))))\n\
+    \ (Error No_more_words)\n\
+    \ ((num_unparsed_records 0) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parser returns 'no more words' for invalid record" =
@@ -246,22 +251,24 @@ let%expect_test "parser returns 'no more words' for invalid record" =
   let parser = Parser.create ~buffer:(Iobuf.read_only buf) () in
   Trace_test_helpers.print_records_until_error parser;
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error Invalid_size_on_record)"];
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Error Invalid_size_on_record)\n\
+    \ "];
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok\n\
-    \     (Event\n\
-    \      ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
-    \       (event_type Instant))))\n\
-    \    (Error No_more_words)\n\
-    \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok\n\
+    \  (Event\n\
+    \   ((timestamp 100ns) (thread 1) (category 0) (name 0) (arguments ())\n\
+    \    (event_type Instant))))\n\
+    \ (Error No_more_words)\n\
+    \ ((num_unparsed_records 1) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parsing returns invalid thread ref" =
@@ -286,13 +293,14 @@ let%expect_test "parsing returns invalid thread ref" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error Invalid_thread_ref)\n\
-    \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Error Invalid_thread_ref)\n\
+    \ ((num_unparsed_records 1) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parsing returns invalid string ref" =
@@ -318,14 +326,15 @@ let%expect_test "parsing returns invalid string ref" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Ok (Interned_string (index 19) (value test)))\n\
-    \    (Error Invalid_string_ref)\n\
-    \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Ok (Interned_string (index 19) (value test)))\n\
+    \ (Error Invalid_string_ref)\n\
+    \ ((num_unparsed_records 1) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "ignores unknown arg types" =
@@ -354,17 +363,18 @@ let%expect_test "ignores unknown arg types" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Ok\n\
-    \     (Event\n\
-    \      ((timestamp 100ns) (thread 1) (category 0) (name 0)\n\
-    \       (arguments ((0 (Int 9)))) (event_type (Counter (id 3))))))\n\
-    \    (Error No_more_words)\n\
-    \    ((num_unparsed_records 0) (num_unparsed_args 1))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Ok\n\
+    \  (Event\n\
+    \   ((timestamp 100ns) (thread 1) (category 0) (name 0)\n\
+    \    (arguments ((0 (Int 9)))) (event_type (Counter (id 3))))))\n\
+    \ (Error No_more_words)\n\
+    \ ((num_unparsed_records 0) (num_unparsed_args 1))\n\
+    \ "]
 ;;
 
 let%expect_test "parsing returns invalid tick initialization" =
@@ -378,10 +388,11 @@ let%expect_test "parsing returns invalid tick initialization" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Error Invalid_tick_initialization)\n\
-    \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Error Invalid_tick_initialization)\n\
+    \ ((num_unparsed_records 1) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parsing valid ticks returns timestamp too large" =
@@ -405,16 +416,17 @@ let%expect_test "parsing valid ticks returns timestamp too large" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Tick_initialization (ticks_per_second 1)\n\
-    \      (base_time ((1969-12-31 19:00:00.000000000-05:00)))))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error Timestamp_too_large)\n\
-    \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Tick_initialization (ticks_per_second 1)\n\
+    \   (base_time ((1969-12-31 19:00:00.000000000-05:00)))))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Error Timestamp_too_large)\n\
+    \ ((num_unparsed_records 1) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parsing negative ticks returns timestamp too large" =
@@ -440,13 +452,14 @@ let%expect_test "parsing negative ticks returns timestamp too large" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Error Timestamp_too_large)\n\
-    \    ((num_unparsed_records 1) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Error Timestamp_too_large)\n\
+    \ ((num_unparsed_records 1) (num_unparsed_args 0))\n\
+    \ "]
 ;;
 
 let%expect_test "parses large timestamps with nanosecond precision" =
@@ -469,15 +482,16 @@ let%expect_test "parses large timestamps with nanosecond precision" =
   Trace_test_helpers.print_records_until_error parser;
   print_s [%sexp (Parser.warnings parser : Parser.Warnings.t)];
   [%expect
-    "\n\
-    \    (Ok (Interned_string (index 1) (value process)))\n\
-    \    (Ok\n\
-    \     (Interned_thread (index 1)\n\
-    \      (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
-    \    (Ok\n\
-    \     (Event\n\
-    \      ((timestamp 19675d22h13m20.000000003s) (thread 1) (category 0) (name 0)\n\
-    \       (arguments ()) (event_type Instant))))\n\
-    \    (Error No_more_words)\n\
-    \    ((num_unparsed_records 0) (num_unparsed_args 0))"]
+    " \n\
+    \ (Ok (Interned_string (index 1) (value process)))\n\
+    \ (Ok\n\
+    \  (Interned_thread (index 1)\n\
+    \   (value ((pid 0) (tid 0) (process_name ()) (thread_name ())))))\n\
+    \ (Ok\n\
+    \  (Event\n\
+    \   ((timestamp 19675d22h13m20.000000003s) (thread 1) (category 0) (name 0)\n\
+    \    (arguments ()) (event_type Instant))))\n\
+    \ (Error No_more_words)\n\
+    \ ((num_unparsed_records 0) (num_unparsed_args 0))\n\
+    \ "]
 ;;

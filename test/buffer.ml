@@ -109,53 +109,54 @@ let%expect_test "buffer preserves required state after dropping events" =
   Trace_test_helpers.print_records_until_error parser;
   [%expect
     {|
-   (Ok (Interned_string (index 1) (value process)))
-   (Ok
-    (Tick_initialization (ticks_per_second 1000000000)
-     (base_time ((1969-12-31 19:00:00.000000001-05:00)))))
-   (Ok (Interned_string (index 157) (value stuff)))
-   (Ok (Interned_string (index 158) (value my_funct)))
-   (Ok
-    (Interned_thread (index 1)
-     (value ((pid 1) (tid 2) (process_name ()) (thread_name ())))))
-   (Ok
-    (Event
-     ((timestamp 26ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Int 2))))
-      (event_type (Async_instant (async_correlation_id 1))))))
-   (Ok
-    (Event
-     ((timestamp 20ms) (thread 1) (category 0) (name 0) (arguments ())
-      (event_type (Flow_end (flow_correlation_id 1))))))
-   (Ok
-    (Event
-     ((timestamp 7ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Int 1)))) (event_type (Counter (id 1))))))
-   (Ok
-    (Event
-     ((timestamp 29ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Int 2))))
-      (event_type (Async_end (async_correlation_id 1))))))
-   (Ok
-    (Event
-     ((timestamp 31ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Int 1))))
-      (event_type (Async_end (async_correlation_id 2))))))
-   (Ok
-    (Event
-     ((timestamp 20ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Float 2.5)))) (event_type (Counter (id 1))))))
-   (Ok
-    (Event
-     ((timestamp 20ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Int64 9223372036854775807))))
-      (event_type (Counter (id 1))))))
-   (Ok
-    (Event
-     ((timestamp 20ms) (thread 1) (category 157) (name 158)
-      (arguments ((157 (Pointer 0x7fffffffffffffff))))
-      (event_type (Counter (id 1))))))
-   (Error No_more_words) |}]
+    (Ok (Interned_string (index 1) (value process)))
+    (Ok
+     (Tick_initialization (ticks_per_second 1000000000)
+      (base_time ((1969-12-31 19:00:00.000000001-05:00)))))
+    (Ok (Interned_string (index 157) (value stuff)))
+    (Ok (Interned_string (index 158) (value my_funct)))
+    (Ok
+     (Interned_thread (index 1)
+      (value ((pid 1) (tid 2) (process_name ()) (thread_name ())))))
+    (Ok
+     (Event
+      ((timestamp 26ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Int 2))))
+       (event_type (Async_instant (async_correlation_id 1))))))
+    (Ok
+     (Event
+      ((timestamp 20ms) (thread 1) (category 0) (name 0) (arguments ())
+       (event_type (Flow_end (flow_correlation_id 1))))))
+    (Ok
+     (Event
+      ((timestamp 7ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Int 1)))) (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 29ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Int 2))))
+       (event_type (Async_end (async_correlation_id 1))))))
+    (Ok
+     (Event
+      ((timestamp 31ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Int 1))))
+       (event_type (Async_end (async_correlation_id 2))))))
+    (Ok
+     (Event
+      ((timestamp 20ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Float 2.5)))) (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 20ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Int64 9223372036854775807))))
+       (event_type (Counter (id 1))))))
+    (Ok
+     (Event
+      ((timestamp 20ms) (thread 1) (category 157) (name 158)
+       (arguments ((157 (Pointer 0x7fffffffffffffff))))
+       (event_type (Counter (id 1))))))
+    (Error No_more_words)
+    |}]
 ;;
 
 let%expect_test "buffer resize" =
@@ -181,8 +182,7 @@ let%expect_test "buffer resize" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (target_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {|
-    expected size 832, got size 832 |}]
+  [%expect {| expected size 832, got size 832 |}]
 ;;
 
 let%expect_test "buffer resize clears data but leaves state" =
@@ -328,7 +328,8 @@ let%expect_test "buffer resize clears data but leaves state" =
       ((timestamp 20ms) (thread 1) (category 121) (name 122)
        (arguments ((121 (Pointer 0x7fffffffffffffff))))
        (event_type (Counter (id 1))))))
-    (Error No_more_words) |}]
+    (Error No_more_words)
+    |}]
 ;;
 
 let%expect_test "empty buffer outputs one event" =

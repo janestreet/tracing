@@ -36,7 +36,7 @@ let%expect_test "Buffer_until_initialized" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (res_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {||}]
+  [%expect {| |}]
 ;;
 
 let%expect_test "file_descriptor" =
@@ -58,7 +58,7 @@ let%expect_test "file_descriptor" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (res_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {||}]
+  [%expect {| |}]
 ;;
 
 let%expect_test "ringbuf_blocking" =
@@ -74,7 +74,7 @@ let%expect_test "ringbuf_blocking" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (res_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {||}]
+  [%expect {| |}]
 ;;
 
 let%expect_test "ringbuf_non_blocking" =
@@ -104,5 +104,5 @@ let%expect_test "ringbuf_non_blocking" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (expected_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (res_buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {||}]
+  [%expect {| |}]
 ;;

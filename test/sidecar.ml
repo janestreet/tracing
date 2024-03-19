@@ -53,7 +53,7 @@ let%expect_test "sidecar_to_file" =
       [ "-to-file"; "-freestanding-binary"; "../sidecar/bin/main.exe" ]
       (fun () -> compare_output tmp_file expected_buf)
   in
-  [%expect {||}];
+  [%expect {| |}];
   Deferred.return ()
 ;;
 
@@ -87,6 +87,6 @@ let%expect_test "sidecar_buffer_to_file" =
       ]
       (fun () -> compare_output tmp_file expected_buf)
   in
-  [%expect {||}];
+  [%expect {| |}];
   Deferred.return ()
 ;;

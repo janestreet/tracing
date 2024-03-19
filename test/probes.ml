@@ -88,5 +88,5 @@ let%expect_test "test probe equivalency" =
   Expect_test_patdiff.print_patdiff_s
     [%sexp (buf : (_, _) Iobuf.Window.Hexdump.Pretty.t)]
     [%sexp (buf_ref : (_, _) Iobuf.Window.Hexdump.Pretty.t)];
-  [%expect {||}]
+  [%expect {| |}]
 ;;

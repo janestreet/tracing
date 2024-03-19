@@ -29,8 +29,7 @@ let%test_module "gc tracing" =
       let parser = Tracing.Parser.create ~buffer:(Iobuf.read_only buf) () in
       let found = found_gc_types parser in
       print_s [%sexp (found : String.Set.t)];
-      [%expect {|
-        (major_gc_slice minor_gc test_event) |}]
+      [%expect {| (major_gc_slice minor_gc test_event) |}]
     ;;
   end)
 ;;
