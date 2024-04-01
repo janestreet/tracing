@@ -61,12 +61,13 @@ type t =
   ; mutable destination : (module Destination)
   ; mutable next_thread_id : int
   ; mutable next_string_id : int
-  ; mutable next_async_id : int
   ; mutable num_temp_strs : int
   ; mutable pending_args : Header_template.t
   ; mutable word_to_flush : int
   ; mutable pending_word : bool
   ; mutable cur_buf_tsc : Time_stamp_counter.t
+  ; mutable string_map_enabled : bool
+  ; mutable original_string : string Int.Table.t
   }
 
 let new_buf_every =
@@ -158,6 +159,7 @@ let set_string_slot t ~string_id s =
   (* maximum string length defined in spec, somewhat less than 2**15 *)
   if str_len >= 32000
   then failwithf "string too long for FTF trace: %i is over the limit of 32kb" str_len ();
+  if t.string_map_enabled then Hashtbl.add_exn t.original_string ~key:string_id ~data:s;
   (* String record *)
   let rtype = 2 in
   let rsize = 1 + round_words_for str_len in
@@ -555,20 +557,18 @@ module Expert = struct
     let ensure_capacity = 8 in
     let buf = D.next_buf ~ensure_capacity in
     (* [next_async_id] starts at 1 since 0 is reserved for stray [Async_instant]s. *)
-    let t =
-      { buf
-      ; destination
-      ; next_thread_id = Thread_id.first
-      ; next_string_id = first_real_string
-      ; next_async_id = 1
-      ; num_temp_strs
-      ; pending_args = Header_template.none
-      ; word_to_flush = 0
-      ; pending_word = false
-      ; cur_buf_tsc = Time_stamp_counter.now ()
-      }
-    in
-    t
+    { buf
+    ; destination
+    ; next_thread_id = Thread_id.first
+    ; next_string_id = first_real_string
+    ; num_temp_strs
+    ; pending_args = Header_template.none
+    ; word_to_flush = 0
+    ; pending_word = false
+    ; cur_buf_tsc = Time_stamp_counter.now ()
+    ; string_map_enabled = false
+    ; original_string = Int.Table.create ()
+    }
   ;;
 
   let create ?num_temp_strs ~destination () =
@@ -713,17 +713,13 @@ module Expert = struct
     Bigstring.unsafe_set_int64_t_le bstr ~pos (Int.to_int64 id)
   ;;
 
-  let create_async_id t =
-    let id = t.next_async_id in
-    t.next_async_id <- id + 1;
-    id
-  ;;
-
   let write_from_header_with_tsc t ~header =
     ignore (write_from_header_and_get_tsc t ~header : Time_stamp_counter.t)
   ;;
 
   let write_tsc t ticks = write_int64_t t (int64_of_tsc ticks)
+  let set_string_map_allocate_on_intern t ~enable = t.string_map_enabled <- enable
+  let string_of_string_id t = Hashtbl.find t.original_string
 
   module Write_arg_unchecked = Write_arg_unchecked
 end

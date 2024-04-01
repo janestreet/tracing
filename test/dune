@@ -15,4 +15,4 @@
  (libraries core expect_test_helpers_core gc_recent_events tracing_zero
    tracing tracing_demo tracing_record_gc tracing_probes tracing_sidecar
    tracing_destinations_unix core_unix patdiff.expect_test_patdiff
-   core_unix.filename_unix core_unix.sys_unix))
+   core_unix.filename_unix core_unix.sys_unix ocaml-probes.probes_lib))
