@@ -1,7 +1,0 @@
-(executables
- (modes byte exe)
- (names async_demo)
- (libraries async core_unix.command_unix core file_path filesystem_async
-   segment_remapper tracing_introspection tracing_probes)
- (preprocess
-  (pps ppx_tracing -async ppx_jane)))
