@@ -1,3 +1,18 @@
+
+## Release v0.17.0
+
+- Added support for asynchronous begin/end/instant events to the trace
+  writer and parser.
+
+- Added option to preserve interned strings' contents in a hash table.
+
+- Extracted platform-specific tracing destinations into the separate library
+  `tracing_destinations_unix`.
+
+- Refactored how the parser handles incomplete event data, fixing a bug.
+
+- Moved full writer signature to `zero/writer_intf.ml`.
+
 ## Release v0.16.0
 
 - Added 64-bit integer and pointer event arguments.
