@@ -21,26 +21,26 @@ let write_demo_trace t =
   let name = TW.intern_string t "my_funct" in
   TW.write_duration_complete
     t
-    ~arg_types:(TW.Arg_types.create ~strings:1 ())
+    ~arg_types:(TW.Arg_types.create ~interned_strings:1 ())
     ~thread
     ~category
     ~name
     ~ticks:10_000
     ~ticks_end:5_000_000;
   (* re-use some existing interned strings for argument names *)
-  TW.Write_arg.string t ~name category;
+  TW.Write_arg.interned_string t ~name category;
   let temp_str = TW.set_temp_string_slot t ~slot:1 "wow" in
   let temp_str2 = TW.set_temp_string_slot t ~slot:2 "cool" in
   TW.write_duration_complete
     t
-    ~arg_types:(TW.Arg_types.create ~strings:2 ())
+    ~arg_types:(TW.Arg_types.create ~interned_strings:2 ())
     ~thread
     ~category
     ~name
     ~ticks:7_000_000
     ~ticks_end:15_000_000;
-  TW.Write_arg.string t ~name temp_str;
-  TW.Write_arg.string t ~name:category temp_str2;
+  TW.Write_arg.interned_string t ~name temp_str;
+  TW.Write_arg.interned_string t ~name:category temp_str2;
   TW.write_async_begin
     t
     ~arg_types:(TW.Arg_types.create ~int32s:1 ())
@@ -63,7 +63,7 @@ let write_demo_trace t =
     ~ticks:17_000_000;
   TW.write_async_begin
     t
-    ~arg_types:(TW.Arg_types.create ~strings:1 ())
+    ~arg_types:(TW.Arg_types.create ~interned_strings:1 ())
     ~thread
     ~category
     ~name

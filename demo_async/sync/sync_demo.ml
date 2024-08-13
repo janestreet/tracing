@@ -2,14 +2,17 @@ open! Core
 open File_path.Operators
 
 let process_directory dir_path =
-  let[@trace "demo" "process" ~arg:(total_size : int)] rec process queue total_size =
+  let[@trace.sync __ ~category:"demo" ~probe:"process" ~arg:(total_size : int)] rec process
+    queue
+    total_size
+    =
     match Queue.dequeue queue with
     | None -> total_size
     | Some path ->
       let stat = Filesystem_core.stat path in
-      [%trace.begin "demo" "manual"];
-      let[@trace "demo" "auto"] () = Core_unix.sleep 1 in
-      [%trace.end "demo" "manual"];
+      [%trace.sync.begin __ ~category:"demo" ~probe:"manual"];
+      let[@trace.sync __ ~category:"demo" ~probe:"auto"] () = Core_unix.sleep 1 in
+      [%trace.sync.end __ ~category:"demo" ~probe:"manual"];
       (match stat.kind with
        | Regular ->
          let num_bytes = Int63.to_int stat.size |> Option.value ~default:0 in

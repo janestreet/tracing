@@ -25,7 +25,10 @@ module type Arg_writers = sig
   type t
   type string_id
 
-  val string : t -> name:string_id -> string_id -> unit
+  val interned_string : t -> name:string_id -> string_id -> unit
+
+  (* [Expert.update_size_for_inline_string] must be called before [inline_string] *)
+  val inline_string : t -> name:string_id -> string -> unit
   val int32 : t -> name:string_id -> int -> unit
   val int63 : t -> name:string_id -> int -> unit
   val int64 : t -> name:string_id -> int64 -> unit
@@ -65,7 +68,7 @@ module type S = sig
   val write_tick_initialization : t -> Tick_translation.t -> unit
 
   module String_id : sig
-    type t [@@immediate] [@@deriving equal]
+    type t [@@deriving equal] [@@immediate]
 
     val empty : t
     val max_number_of_temp_string_slots : int
@@ -138,7 +141,14 @@ module type S = sig
     val none : t
 
     (** If you're going to write arguments, provide the count of each type you'll write. *)
-    val create : ?int64s:int -> ?int32s:int -> ?floats:int -> ?strings:int -> unit -> t
+    val create
+      :  ?int64s:int
+      -> ?int32s:int
+      -> ?floats:int
+      -> ?interned_strings:int
+      -> ?inlined_strings:int
+      -> unit
+      -> t
   end
 
   (** Most event writer functions take a common set of arguments including a commitment to
@@ -250,6 +260,8 @@ module type S = sig
     type header
 
     val set_name : header:header -> name:String_id.t -> header
+    val update_size_for_name : header:header -> name:string -> header
+    val update_size_for_inline_string : header:header -> inline_string:string -> header
 
     (** For use with [precompute_header_and_size] *)
     module Event_type : sig
@@ -307,6 +319,9 @@ module type S = sig
     (** Unchecked writing of the result of [write_from_header_and_get_tsc] after
         the arguments. *)
     val write_tsc : t -> Time_stamp_counter.t -> unit
+
+    (** Unchecked write of a string stream. *)
+    val write_string_stream : t -> string -> unit
 
     (** Unchecked write of a correlation id to complete an async event. *)
     val write_async_id : t -> int -> unit

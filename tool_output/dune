@@ -1,7 +1,7 @@
 (library
  (name tracing_tool_output)
  (public_name tracing.tool_output)
- (libraries async core core_kernel.iobuf core_unix.time_ns_unix
-   tracing_destinations_unix tracing_zero)
+ (libraries async async_unix cohttp cohttp-async core core_kernel.iobuf
+   core_unix.time_ns_unix tracing_destinations_unix tracing_zero uri)
  (preprocess
   (pps ppx_jane)))

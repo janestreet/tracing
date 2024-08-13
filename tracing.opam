@@ -12,11 +12,15 @@ build: [
 depends: [
   "ocaml" {>= "5.1.0"}
   "async"
+  "async_unix"
   "core"
   "core_kernel"
   "core_unix"
   "ppx_jane"
-  "dune"        {>= "3.11.0"}
+  "cohttp"       {>= "2.5.6"}
+  "cohttp-async" {>= "2.5.7" & < "3.0.0" | >= "5.1.1" & < "6.0.0"}
+  "dune"         {>= "3.11.0"}
+  "uri"          {>= "3.0.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Tracing library"

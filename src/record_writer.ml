@@ -16,6 +16,12 @@ let writer_string_id t index =
   else Hashtbl.find_exn t.string_ids index
 ;;
 
+let writer_string_ref t string_ref =
+  match (string_ref : Parser.String_ref.t) with
+  | String_index index -> writer_string_id t index
+  | Inline_string _ -> Writer.String_id.empty
+;;
+
 (* Can raise if a thread index is used before being seen in an [Interned_thread] record. *)
 let writer_thread_id t index = Hashtbl.find_exn t.thread_ids index
 
@@ -27,13 +33,13 @@ let create writer =
 ;;
 
 let create_arg_types event_args =
-  let strings = ref 0 in
+  let interned_strings = ref 0 in
   let int32s = ref 0 in
   let int64s = ref 0 in
   let floats = ref 0 in
   List.iter event_args ~f:(fun (_, value) ->
     match (value : Parser.Event_arg.value) with
-    | String _ -> incr strings
+    | String _ -> incr interned_strings
     | Int i -> if Util.int_fits_in_int32 i then incr int32s else incr int64s
     | Int64 i -> if Util.int64_fits_in_int32 i then incr int32s else incr int64s
     | Pointer _ -> incr int64s
@@ -42,15 +48,16 @@ let create_arg_types event_args =
     ~int32s:!int32s
     ~int64s:!int64s
     ~floats:!floats
-    ~strings:!strings
+    ~interned_strings:!interned_strings
+    ?inlined_strings:None
     ()
 ;;
 
 let process_event t (event : Parser.Event.t) =
   let arg_types = create_arg_types event.arguments in
   let thread = writer_thread_id t event.thread in
-  let category = writer_string_id t event.category in
-  let name = writer_string_id t event.name in
+  let category = writer_string_ref t event.category in
+  let name = writer_string_ref t event.name in
   let ticks = Time_ns.Span.to_int_ns event.timestamp in
   (* Write event *)
   (match event.event_type with
@@ -96,7 +103,7 @@ let process_event t (event : Parser.Event.t) =
     match value with
     | String str ->
       let string_id = writer_string_id t str in
-      Writer.Write_arg.string t.writer ~name string_id
+      Writer.Write_arg.interned_string t.writer ~name string_id
     | Float i -> Writer.Write_arg.float t.writer ~name i
     | Int i ->
       if Util.int_fits_in_int32 i

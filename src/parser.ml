@@ -10,6 +10,13 @@ end
 module String_index = Int
 module Thread_index = Int
 
+module String_ref = struct
+  type t =
+    | String_index of String_index.t
+    | Inline_string of string
+  [@@deriving sexp_of, compare, hash, equal]
+end
+
 module Event_arg = struct
   type value =
     | String of String_index.t
@@ -26,8 +33,8 @@ module Event = struct
   type t =
     { timestamp : Time_ns.Span.t
     ; thread : Thread_index.t
-    ; category : String_index.t
-    ; name : String_index.t
+    ; category : String_ref.t
+    ; name : String_ref.t
     ; arguments : Event_arg.t list
     ; event_type : Event_type.t
     }
@@ -157,10 +164,10 @@ let consume_int64_t_exn iobuf =
   if Iobuf.length iobuf < 8 then raise Invalid_record else Iobuf.Consume.int64_t_le iobuf
 ;;
 
-let consume_tail_padded_string_exn iobuf ~len =
+let consume_tail_padded_string_exn ?(padding = Char.min_value) iobuf ~len =
   if Iobuf.length iobuf < len
   then raise Invalid_record
-  else Iobuf.Consume.tail_padded_fixed_string ~padding:Char.min_value ~len iobuf
+  else Iobuf.Consume.tail_padded_fixed_string ~padding ~len iobuf
 ;;
 
 let advance_iobuf_exn iobuf ~by:len =
@@ -212,9 +219,25 @@ let lookup_string_exn t ~index =
     | _ -> raise String_not_found)
 ;;
 
+let lookup_string_ref_exn t ~string_ref =
+  match (string_ref : String_ref.t) with
+  | String_index index -> lookup_string_exn t ~index
+  | Inline_string string -> string
+;;
+
 let lookup_thread_exn t ~index =
   try Hashtbl.find_exn t.thread_table index with
   | _ -> raise Thread_not_found
+;;
+
+let[@inline] consume_string_stream t ~length:len =
+  (* 8-byte padding is used for string streams in Fuchsia. *)
+  consume_tail_padded_string_exn t ~len ~padding:(Char.of_int_exn 8)
+;;
+
+let[@inline] raise_on_index_not_found t ~index =
+  (* raise an exception if the string is not in the string table *)
+  if t.raise_on_not_found then lookup_string_exn t ~index |> (ignore : string -> unit)
 ;;
 
 (* Extracts a 16-bit string index. Will raise if the string index isn't in the string
@@ -225,9 +248,22 @@ let lookup_thread_exn t ~index =
    we only write strings to indices [1, 32767]. *)
 let[@inline] extract_string_index t word ~pos =
   let index = extract_field word ~pos ~size:16 in
-  (* raise an exception if the string is not in the string table *)
-  if t.raise_on_not_found then lookup_string_exn t ~index |> (ignore : string -> unit);
+  raise_on_index_not_found t ~index;
   index
+;;
+
+let[@inline] extract_string_ref t word ~pos =
+  let string_ref = extract_field word ~pos ~size:16 in
+  let inline_string_flag = 1 lsl 15 in
+  if string_ref land inline_string_flag > 0
+  then (
+    let length = string_ref lxor inline_string_flag in
+    let string = consume_string_stream t.cur_record ~length in
+    String_ref.Inline_string string)
+  else (
+    let index = string_ref in
+    raise_on_index_not_found t ~index;
+    String_ref.String_index index)
 ;;
 
 (* Extracts an 8-bit thread index. Will raise if the thread index isn't in the
@@ -437,9 +473,9 @@ let parse_event_record t =
   let num_args = extract_field header_lower ~pos:20 ~size:4 in
   let thread = extract_thread_index t header_lower ~pos:24 in
   let header_upper = consume_int32_exn t.cur_record in
-  let category = extract_string_index t header_upper ~pos:0 in
-  let name = extract_string_index t header_upper ~pos:16 in
   let timestamp_tick = consume_tick t in
+  let category = extract_string_ref t header_upper ~pos:0 in
+  let name = extract_string_ref t header_upper ~pos:16 in
   let args = parse_args t ~num_args in
   let event_type : Event_type.t option =
     match ev_type with

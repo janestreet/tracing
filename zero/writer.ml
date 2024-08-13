@@ -10,9 +10,18 @@ module Header_template = struct
 
   let none = 0
 
-  let create ?(int64s = 0) ?(int32s = 0) ?(floats = 0) ?(strings = 0) () =
-    let num_args = int64s + floats + int32s + strings in
-    let arg_words = (int64s * 2) + (floats * 2) + int32s + strings in
+  let create
+    ?(int64s = 0)
+    ?(int32s = 0)
+    ?(floats = 0)
+    ?(interned_strings = 0)
+    ?(inlined_strings = 0)
+    ()
+    =
+    let num_args = int64s + floats + int32s + interned_strings + inlined_strings in
+    let arg_words =
+      (int64s * 2) + (floats * 2) + int32s + interned_strings + inlined_strings
+    in
     (* This also guards [arg_words] since it has a much larger bound *)
     if num_args > 15 then failwithf "%i is over the 15 event argument limit" num_args ();
     (arg_words lsl 4) lor (num_args lsl 20)
@@ -33,8 +42,9 @@ module Header_template = struct
      which are unlikely to happen accidentally in practice, and this is only used by
      a check to try to avoid writing invalid traces. See the comment for [pending_args]
      inside [flush]. *)
-  let[@inline] remove_args t ?int64s ?int32s ?floats ?strings () =
-    t - create ?int64s ?int32s ?floats ?strings ()
+  let[@inline] remove_args t ?int64s ?int32s ?floats ?interned_strings ?inlined_strings ()
+    =
+    t - create ?int64s ?int32s ?floats ?interned_strings ?inlined_strings ()
   ;;
 
   (* [pending_args] below is a trick to check that we've written arguments matching the
@@ -154,11 +164,15 @@ module String_id = struct
   let of_int slot = slot
 end
 
+let check_string_length length =
+  (* maximum string length defined in spec, somewhat less than 2**15 *)
+  if length >= 32000
+  then failwithf "string too long for FTF trace: %i is over the limit of 32kb" length ()
+;;
+
 let set_string_slot t ~string_id s =
   let str_len = String.length s in
-  (* maximum string length defined in spec, somewhat less than 2**15 *)
-  if str_len >= 32000
-  then failwithf "string too long for FTF trace: %i is over the limit of 32kb" str_len ();
+  check_string_length str_len;
   if t.string_map_enabled then Hashtbl.add_exn t.original_string ~key:string_id ~data:s;
   (* String record *)
   let rtype = 2 in
@@ -318,6 +332,31 @@ let[@inline] header_set_name ~header ~name =
   Int64.(header land 0x0000ffffffffffffL lor (of_int name lsl 48))
 ;;
 
+let[@inline] header_update_size_for_inline_string ~header ~inline_string =
+  let current_word_count = Int64.((header land 0xFFF0L) lsr 4) in
+  let words_to_add = round_words_for (String.length inline_string) |> Int64.of_int in
+  let new_word_count = Int64.(current_word_count + words_to_add) in
+  if Int64.(new_word_count >= 1L lsl 12)
+  then
+    failwithf
+      "Cannot update event size for inline string: maximum size exceeded \
+       (current_word_count: %Ld, words_to_add: %Ld)"
+      current_word_count
+      words_to_add
+      ();
+  let header_without_size = Int64.(header land lnot 0xFFF0L) in
+  Int64.(header_without_size + (new_word_count lsl 4))
+;;
+
+let[@inline] header_update_size_for_name ~header ~name =
+  let header = header_update_size_for_inline_string ~header ~inline_string:name in
+  let str_len = String.length name in
+  let inline_string_flag = 1 in
+  let name_ref = str_len lor (inline_string_flag lsl 15) |> Int64.of_int in
+  let header_without_name = Int64.(header land lnot (0xffffL lsl 48)) in
+  Int64.(header_without_name lor (name_ref lsl 48))
+;;
+
 module Event_type = struct
   type t = int
 
@@ -466,11 +505,23 @@ end
 module Write_arg_unchecked = struct
   (* None of the argument writers allocate capacity, the event does that. *)
 
-  let string t ~name value =
+  let interned_string t ~name value =
     let asize = 1 in
     write_int64
       t
       (Header_tag.string lor (asize lsl 4) lor (name lsl 16) lor (value lsl 32))
+  ;;
+
+  let inline_string t ~name value =
+    let str_len = String.length value in
+    check_string_length str_len;
+    let asize = 1 + round_words_for str_len in
+    let inline_string_flag = 1 in
+    let value_ref = str_len lor (inline_string_flag lsl 15) in
+    write_int64
+      t
+      (Header_tag.string lor (asize lsl 4) lor (name lsl 16) lor (value_ref lsl 32));
+    write_string_stream t value
   ;;
 
   let int32 t ~name value =
@@ -513,9 +564,14 @@ module Write_arg_unchecked = struct
 end
 
 module Write_arg = struct
-  let string t ~name value =
-    t.pending_args <- Header_template.remove_args t.pending_args ~strings:1 ();
-    Write_arg_unchecked.string t ~name value
+  let interned_string t ~name value =
+    t.pending_args <- Header_template.remove_args t.pending_args ~interned_strings:1 ();
+    Write_arg_unchecked.interned_string t ~name value
+  ;;
+
+  let inline_string t ~name value =
+    t.pending_args <- Header_template.remove_args t.pending_args ~inlined_strings:1 ();
+    Write_arg_unchecked.inline_string t ~name value
   ;;
 
   let int32 t ~name value =
@@ -655,6 +711,15 @@ module Expert = struct
   ;;
 
   let[@inline] set_name ~header ~name = header_set_name ~header ~name
+
+  let[@inline] update_size_for_name ~header ~name =
+    header_update_size_for_name ~header ~name
+  ;;
+
+  let[@inline] update_size_for_inline_string ~header ~inline_string =
+    header_update_size_for_inline_string ~header ~inline_string
+  ;;
+
   let[@inline] int64_of_tsc ticks = Time_stamp_counter.to_int63 ticks |> Int63.to_int64
 
   let[@cold] refresh_buf t tsc =
@@ -718,6 +783,7 @@ module Expert = struct
   ;;
 
   let write_tsc t ticks = write_int64_t t (int64_of_tsc ticks)
+  let write_string_stream = write_string_stream
   let set_string_map_allocate_on_intern t ~enable = t.string_map_enabled <- enable
   let string_of_string_id t = Hashtbl.find t.original_string
 

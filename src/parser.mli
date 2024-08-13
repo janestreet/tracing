@@ -16,6 +16,13 @@ module String_index : sig
   val zero : t
 end
 
+module String_ref : sig
+  type t =
+    | String_index of String_index.t
+    | Inline_string of string
+  [@@deriving sexp_of, compare, hash, equal]
+end
+
 (** Thread indices are in the range [1, 255]. *)
 module Thread_index : sig
   type t = private int [@@deriving sexp_of, compare, hash, equal]
@@ -39,8 +46,8 @@ module Event : sig
   type t =
     { timestamp : Time_ns.Span.t
     ; thread : Thread_index.t
-    ; category : String_index.t
-    ; name : String_index.t
+    ; category : String_ref.t
+    ; name : String_ref.t
     ; arguments : Event_arg.t list
     ; event_type : Event_type.t
     }
@@ -132,6 +139,13 @@ val base_time : t -> Time_ns.Option.t
    parser instance is passed as an argument and that index is unassigned in [t]'s string
    table. *)
 val lookup_string_exn : t -> index:String_index.t -> string
+
+(* Either returns the string stored at [index] in the parser's string table if
+   [string_ref] is [String_index index] or returns the inlined string if [string_ref]
+   is [Inline_string].
+
+   Raises in the same cases as [lookup_string_exn]. *)
+val lookup_string_ref_exn : t -> string_ref:String_ref.t -> string
 
 (* Returns the thread stored at [index] in the parser's thread table. May raise
    [Thread_not_found] if a [Thread_index.t] from another parser instance is passed as an

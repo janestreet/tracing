@@ -43,7 +43,7 @@ module State = struct
   type t =
     { strings : string Hashtbl.M(Parser.String_index).t (** Interned strings *)
     ; threads : Parser.Thread.t Hashtbl.M(Parser.Thread_index).t
-        (** Interned thread IDs *)
+    (** Interned thread IDs *)
     ; thread_names : Parser.String_index.t Hashtbl.M(Thread).t
     ; process_names : Parser.String_index.t Hashtbl.M(Process).t
     ; mutable ticks : Ticks.t option
@@ -141,26 +141,41 @@ module Checkpoint = struct
     { begin_state; destination = (module Dest); data; refs = State.References.create () }
   ;;
 
+  let process_string_index t index = Hash_set.add t.refs.string_idxs index
+  let process_thread_index t index = Hash_set.add t.refs.thread_idxs index
+
+  let process_string_ref t : Parser.String_ref.t -> unit = function
+    | String_index index -> process_string_index t index
+    | Inline_string _ -> ()
+  ;;
+
+  let process_process t ~pid = Hash_set.add t.refs.processes { pid }
+  let process_thread t ~pid ~tid = Hash_set.add t.refs.threads { pid; tid }
+
+  let process_args t =
+    List.iter ~f:(fun (name, arg) ->
+      process_string_index t name;
+      match arg with
+      | Parser.Event_arg.String idx -> process_string_index t idx
+      | _ -> ())
+  ;;
+
   let process t record =
     let open Parser.Record in
     match record with
-    | Interned_string { index; value = _ } -> Hash_set.add t.refs.string_idxs index
-    | Interned_thread { index; value = _ } -> Hash_set.add t.refs.thread_idxs index
+    | Interned_string { index; value = _ } -> process_string_index t index
+    | Interned_thread { index; value = _ } -> process_thread_index t index
     | Process_name_change { name; pid } ->
-      Hash_set.add t.refs.string_idxs name;
-      Hash_set.add t.refs.processes { pid }
+      process_string_index t name;
+      process_process t ~pid
     | Thread_name_change { name; pid; tid } ->
-      Hash_set.add t.refs.string_idxs name;
-      Hash_set.add t.refs.threads { pid; tid }
+      process_string_index t name;
+      process_thread t ~pid ~tid
     | Event { timestamp = _; thread; category; name; arguments; event_type = _ } ->
-      Hash_set.add t.refs.string_idxs category;
-      Hash_set.add t.refs.string_idxs name;
-      Hash_set.add t.refs.thread_idxs thread;
-      List.iter arguments ~f:(fun (name, arg) ->
-        Hash_set.add t.refs.string_idxs name;
-        match arg with
-        | Parser.Event_arg.String idx -> Hash_set.add t.refs.string_idxs idx
-        | _ -> ())
+      process_string_ref t category;
+      process_string_ref t name;
+      process_thread_index t thread;
+      process_args t arguments
     | Tick_initialization _ -> ()
   ;;
 

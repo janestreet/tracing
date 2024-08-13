@@ -113,13 +113,13 @@ module Baked_args = struct
   ;;
 
   let types t =
-    let strings = ref 0 in
+    let interned_strings = ref 0 in
     let int32s = ref 0 in
     let int64s = ref 0 in
     let floats = ref 0 in
     List.iter t ~f:(fun (_, v) ->
       match v with
-      | String _ -> incr strings
+      | String _ -> incr interned_strings
       | Int32 _ -> incr int32s
       | Int63 _ | Int64 _ | Pointer _ -> incr int64s
       | Float _ -> incr floats);
@@ -127,13 +127,14 @@ module Baked_args = struct
       ~int32s:!int32s
       ~int64s:!int64s
       ~floats:!floats
-      ~strings:!strings
+      ~interned_strings:!interned_strings
+      ?inlined_strings:None
       ()
   ;;
 
   let write (t : t) w =
     List.iter t ~f:(function
-      | name, String s -> TW.Write_arg.string w ~name s
+      | name, String s -> TW.Write_arg.interned_string w ~name s
       | name, Int32 i -> TW.Write_arg.int32 w ~name i
       | name, Int63 i -> TW.Write_arg.int63 w ~name i
       | name, Int64 i -> TW.Write_arg.int64 w ~name i
