@@ -68,7 +68,7 @@ module type S = sig
   val write_tick_initialization : t -> Tick_translation.t -> unit
 
   module String_id : sig
-    type t [@@deriving equal] [@@immediate]
+    type t : immediate [@@deriving equal]
 
     val empty : t
     val max_number_of_temp_string_slots : int
@@ -99,7 +99,7 @@ module type S = sig
   (** The trace format interns the 64 bit thread and process IDs into an 8-bit thread ID and
       we expose this to the user. *)
   module Thread_id : sig
-    type t [@@immediate]
+    type t : immediate
 
     val of_int : int -> t
   end

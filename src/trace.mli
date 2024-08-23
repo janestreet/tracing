@@ -182,7 +182,7 @@ val write_flow_step : t -> Flow.t -> thread:Thread.t -> time:Time_ns.Span.t -> u
 val finish_flow : t -> Flow.t -> unit
 
 module Async : sig
-  type t [@@immediate]
+  type t : immediate
 end
 
 (** Async slices are similar to duration slices, but need to be uniquely identifiable
