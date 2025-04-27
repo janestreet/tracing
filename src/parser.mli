@@ -93,33 +93,32 @@ end
 
 type t
 
-(** Creates parser. A [buffer] may be provided to start parsing from. Equivalently,
-    the user may call [set_buffer] to initialize parsing.
+(** Creates parser. A [buffer] may be provided to start parsing from. Equivalently, the
+    user may call [set_buffer] to initialize parsing.
 
-    If [ignore_not_found] is specified, the parser will not raise when parsing events
-    that refer to interned thread and string indices that have not yet been set. Instead,
-    the event will be returned including the unknown indices. *)
+    If [ignore_not_found] is specified, the parser will not raise when parsing events that
+    refer to interned thread and string indices that have not yet been set. Instead, the
+    event will be returned including the unknown indices. *)
 val create : ?ignore_not_found:bool -> ?buffer:(read, Iobuf.seek) Iobuf.t -> unit -> t
 
 (** Provides a new data buffer for the parser to continue reading from. Optionally
     prepends [prefix] to the buffer, allowing the user to preserve state returned by
-    [Parse_error.Incomplete_record]. If the new buffer completes the record, it will
-    be returned by the next call to [parse_next]. *)
+    [Parse_error.Incomplete_record]. If the new buffer completes the record, it will be
+    returned by the next call to [parse_next]. *)
 val set_buffer : t -> (read, Iobuf.seek) Iobuf.t -> unit
 
 (** Advance through the trace until we find a Fuchsia record matching one of the record
     types defined above.
 
     When [Parse_error.No_more_words] is returned, the buffer is left to point to the
-    beginning of the incomplete record.  Therefore, the next call to [parse_next] will
+    beginning of the incomplete record. Therefore, the next call to [parse_next] will
     attempt to parse the incomplete record again and return the error again.
 
     When any other parse error is returned, the buffer is left to point to the beginning
-    of the next record, having advanced past the record containing the error.  Since we
+    of the next record, having advanced past the record containing the error. Since we
     look at the record size to know how many words to skip, if the record size is
     incorrect then the parser may enter an invalid state and skip over records/read
-    garbage values in the next call to [parse_next].
-*)
+    garbage values in the next call to [parse_next]. *)
 val parse_next : t -> (Record.t, Parse_error.t) Result.t
 
 val warnings : t -> Warnings.t

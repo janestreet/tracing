@@ -16,7 +16,7 @@ end
 module Ticks = struct
   type t =
     { ticks_per_second : int
-    ; base_time : Time_ns_unix.Option.t
+    ; base_time : Time_ns.Option.t
     }
 end
 

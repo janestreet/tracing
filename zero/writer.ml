@@ -3,8 +3,8 @@ open Writer_intf
 
 (** We want to be able to write event arguments without allocating, which requires users
     specify the argument types they will pass up front. To avoid allocating a record to
-    store those counts we pre-compile the fields of the event header which have to do
-    with argument counts and total size into an immediate value. *)
+    store those counts we pre-compile the fields of the event header which have to do with
+    argument counts and total size into an immediate value. *)
 module Header_template = struct
   type t = int
 
@@ -62,8 +62,8 @@ module Header_template = struct
   ;;
 end
 
-(** In the public API it makes more sense for it to be named [Arg_types] since that's
-    all the functionality which is exposed *)
+(** In the public API it makes more sense for it to be named [Arg_types] since that's all
+    the functionality which is exposed *)
 module Arg_types = Header_template
 
 type t =

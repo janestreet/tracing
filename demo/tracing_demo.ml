@@ -6,8 +6,8 @@ module Trace = Tracing.Trace
     [write_demo_trace] in [test/trace.ml].
 
     This function is in this module instead of the tests so that there can be an
-    `app/tracing` command to write out the demo trace and validate it reads correctly
-    in Perfetto. *)
+    `app/tracing` command to write out the demo trace and validate it reads correctly in
+    Perfetto. *)
 
 let write_demo_trace t =
   let base_time = Time_ns.of_int_ns_since_epoch 1 in

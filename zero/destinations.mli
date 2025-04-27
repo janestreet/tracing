@@ -8,22 +8,22 @@ val iobuf_destination
   -> (module Writer_intf.Destination)
 
 (** Write to a provided [Iobuf.t], throws an exception if the buffer runs out of space.
-    Dynamically updates the window of the [Iobuf.t] as data is written, and does not
-    set the window to the data writen on closure. *)
+    Dynamically updates the window of the [Iobuf.t] as data is written, and does not set
+    the window to the data writen on closure. *)
 val raw_iobuf_destination
   :  (read_write, Iobuf.seek) Iobuf.t
   -> (module Writer_intf.Destination)
 
 (** Creates a new buffer, which is reset and reused on every call to [next_buf],
-    effectively dropping all the previously-recorded content, as the name suggests.
-    Useful for performance benchmarking or having trace
-    events be ignored without growing an in-memory log.
+    effectively dropping all the previously-recorded content, as the name suggests. Useful
+    for performance benchmarking or having trace events be ignored without growing an
+    in-memory log.
 
     [len] is the length of the buffer and can be tuned to simulate different cache
     characteristics in a benchmark or avoid using much memory when ignoring events.
 
-    If [touch_memory] is true, the memory will be written over to ensure all the
-    memory is paged in, to reduce benchmark variance. *)
+    If [touch_memory] is true, the memory will be written over to ensure all the memory is
+    paged in, to reduce benchmark variance. *)
 val black_hole_destination
   :  len:int
   -> touch_memory:bool

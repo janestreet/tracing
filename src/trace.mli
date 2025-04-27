@@ -13,8 +13,7 @@
 
     {2 Viewing traces}
 
-    You can view traces in the Perfetto web UI available at
-    https://ui.perfetto.dev/
+    You can view traces in the Perfetto web UI available at https://ui.perfetto.dev/
 
     Use the "Open trace file" menu item on the left to select a trace file to view.
 
@@ -34,38 +33,30 @@
 
     {2 Times: relative and absolute}
 
-    Time instants are provided as a Time_ns.Span.t from the start of the trace. If you have
-    absolute times you should subtract the time of the start of your trace or the start of
-    the day the trace was taken (see [dominodb_converter.ml] in app/tracing for code).
-    Then provide [base_time] to [create] so that tools which need absolute time can use it
-    to for example merge traces while aligning time properly.
+    Time instants are provided as a Time_ns.Span.t from the start of the trace. If you
+    have absolute times you should subtract the time of the start of your trace or the
+    start of the day the trace was taken (see [dominodb_converter.ml] in app/tracing for
+    code). Then provide [base_time] to [create] so that tools which need absolute time can
+    use it to for example merge traces while aligning time properly.
 
     Avoid converting a Time_ns.t to a span since epoch, because although the format uses
     64-bit nanoseconds, the Perfetto trace viewer visualizes using Javascript doubles so
     large timestamps like this will cause weird imprecision in where events are drawn due
-    to rounding of large numbers.
-*)
+    to rounding of large numbers. *)
 
 open! Core
 
 type t
-
-(** Open a file to write trace events to in the Fuchsia Trace Format, suggested extension
-    is [.fxt].
-
-    If [base_time] is provided, a time initialization record will be written which
-    records what absolute time corresponds to [Time_ns.Span.zero]. *)
-val create_for_file : base_time:Time_ns.t option -> filename:string -> t
 
 (** Signifies that all writing is done, any further writing will throw an exception.
 
     Just calls [close] on the underlying writer. *)
 val close : t -> unit
 
-(** Translate an absolute time to trace time. If [base_time] was provided it subtracts that,
-    asserting if the time is before the base time. Otherwise it measures relative to unix
-    epoch. If you already have times relative to a trace start time there's no need to use
-    this. *)
+(** Translate an absolute time to trace time. If [base_time] was provided it subtracts
+    that, asserting if the time is before the base time. Otherwise it measures relative to
+    unix epoch. If you already have times relative to a trace start time there's no need
+    to use this. *)
 val translate_time : t -> Time_ns.t -> Time_ns.Span.t
 
 (** The format uses pids and tids to represent processes and threads, and the wrapper can
@@ -80,15 +71,15 @@ end
 
 (** Allocate a tid and name a new the thread for a process.
 
-    Threads are sorted by alphabetical order within a process in the Perfetto UI.*)
+    Threads are sorted by alphabetical order within a process in the Perfetto UI. *)
 val allocate_thread : t -> pid:int -> name:string -> Thread.t
 
 (* Wrappers for Tracing_zero.Writer events with an easier-to-use interface.
 
    See the [Tracing_zero.Writer.t] docs for more on what these events are. *)
 
-(** Named arguments of various simple types can be attached to events and will show up
-    in the bottom details panel when an event is selected in Perfetto. *)
+(** Named arguments of various simple types can be attached to events and will show up in
+    the bottom details panel when an event is selected in Perfetto. *)
 module Arg = Trace_intf.Event_arg
 
 (** The [name] shows up as the main label of the event in UIs, and the category is another
@@ -127,14 +118,13 @@ val write_duration_instant : unit event_writer
     ID and represents each argument as a separate line chart.
 
     Counter events are grouped into a chart labeled "<event name>:<argument name>" per
-    thread that name pair is used on.
-*)
+    thread that name pair is used on. *)
 val write_counter : unit event_writer
 
 (** Begin a duration slice which will be finished with a matching end event.
 
-    A "duration slice" starts and ends at different times but has a single name
-    and category. It shows up as a bar between the start and end time in UIs.
+    A "duration slice" starts and ends at different times but has a single name and
+    category. It shows up as a bar between the start and end time in UIs.
 
     Duration slices within a thread should be nested properly such that if a duration
     slice starts within another slice then it must end before that slice ends. *)
@@ -149,8 +139,8 @@ val write_duration_end : unit event_writer
     per slice *)
 val write_duration_complete : (time_end:Time_ns.Span.t -> unit) event_writer
 
-(** Flows are chains of duration slices which get connected by arrows when selected in
-    a trace viewer UI. A flow is composed of "steps", each of which must be written at a
+(** Flows are chains of duration slices which get connected by arrows when selected in a
+    trace viewer UI. A flow is composed of "steps", each of which must be written at a
     time contained in a duration slice, and when one of those slices is selected in the UI
     it will display arrows connecting the slices of each step in order like this:
 
@@ -177,8 +167,7 @@ val write_flow_step : t -> Flow.t -> thread:Thread.t -> time:Time_ns.Span.t -> u
     The representation of trace events in the file format requires us to hold one flow
     step in memory until either the next flow step or we finish adding steps, in order to
     know what kind of event to write out. Finishing a flow writes out any last buffered
-    step.
-*)
+    step. *)
 val finish_flow : t -> Flow.t -> unit
 
 module Async : sig
@@ -196,21 +185,19 @@ end
     {v
     [ ---------- async_f ----------------------- ]
             [ ---------- async_f --------]
-    v}
-*)
+    v} *)
 val create_async : t -> Async.t
 
 (** Begin an async slice with a given id which will have a corresponding end.
 
     An "async slice" starts and ends at different times but has a single name, category,
-    and id. It shows up as a bar between the start and end time in UIs.
-*)
+    and id. It shows up as a bar between the start and end time in UIs. *)
 val write_async_begin : (Async.t -> unit) event_writer
 
 (** An event with a time but no duration within the async slice with matching id. *)
 val write_async_instant : (Async.t -> unit) event_writer
 
-(** Ends an async slice with matching id, name, and category.  *)
+(** Ends an async slice with matching id, name, and category. *)
 val write_async_end : (Async.t -> unit) event_writer
 
 module Expert : sig

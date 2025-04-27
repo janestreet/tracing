@@ -1,5 +1,4 @@
 open! Core
-module Time_ns = Time_ns_unix
 
 module Event_type = struct
   type t =

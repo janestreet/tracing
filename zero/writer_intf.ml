@@ -9,9 +9,9 @@ open! Core
     which would be required to write to a shared-memory transport involving a ring or
     double-buffering system. *)
 module type Destination = sig
-  (** Called before writing up to [ensure_capacity] bytes of data to the destination.
-      Any older buffers will no longer be used after calling this function, so it's legal
-      for a [Destination] to re-use [Iobuf.t]s to avoid allocating.
+  (** Called before writing up to [ensure_capacity] bytes of data to the destination. Any
+      older buffers will no longer be used after calling this function, so it's legal for
+      a [Destination] to re-use [Iobuf.t]s to avoid allocating.
 
       All writers are expected to update the Iobuf's [lo], either manually or using
       [Iobuf.Fill]. Data will only be consumed up to the new [lo]. *)
@@ -87,17 +87,17 @@ module type S = sig
       interning. *)
   val intern_string : t -> string -> String_id.t
 
-  (** This interns a string while re-using a set of 100 reserved string IDs (by default, the
-      number can be overriden at writer creation). Setting the string in a slot overwrites
-      what was previously in that slot so any further events written in the trace see the new
-      value. This allows arbitrarily many unique strings to be used in a trace, unlike
-      [intern_string].*)
+  (** This interns a string while re-using a set of 100 reserved string IDs (by default,
+      the number can be overriden at writer creation). Setting the string in a slot
+      overwrites what was previously in that slot so any further events written in the
+      trace see the new value. This allows arbitrarily many unique strings to be used in a
+      trace, unlike [intern_string]. *)
   val set_temp_string_slot : t -> slot:int -> string -> String_id.t
 
   val num_temp_strs : t -> int
 
-  (** The trace format interns the 64 bit thread and process IDs into an 8-bit thread ID and
-      we expose this to the user. *)
+  (** The trace format interns the 64 bit thread and process IDs into an 8-bit thread ID
+      and we expose this to the user. *)
   module Thread_id : sig
     type t : immediate
 
@@ -108,10 +108,10 @@ module type S = sig
       thread which may have previously been in that slot. The number of thread slots is
       very limited (0<=slot<255) so you may need to manage them carefully.
 
-      If a [pid] is the same as the [tid], Perfetto will consider that thread a "main thread"
-      and sort it first among the threads, contrary to its usual alphabetical sorting by
-      thread name. So if you don't want this to happen allocate tids such that they're never
-      the same as a pid.
+      If a [pid] is the same as the [tid], Perfetto will consider that thread a "main
+      thread" and sort it first among the threads, contrary to its usual alphabetical
+      sorting by thread name. So if you don't want this to happen allocate tids such that
+      they're never the same as a pid.
 
       Note that Perfetto doesn't require tids to be unique across different pids, but the
       Fuchsia Trace Format spec implies they should be. I think it's safe to assume that
@@ -129,11 +129,11 @@ module type S = sig
       Perfetto sorts threads within a process alphabetically. *)
   val set_thread_name : t -> pid:int -> tid:int -> name:String_id.t -> unit
 
-  (** Events are written with a header which specifies how large the record is and how many
-      arguments it has, which means you need to pre-commit to how many arguments of each
-      type you will later write for an event. This is checked and will throw an exception if
-      you write another event or close the writer without having written the correct
-      arguments. *)
+  (** Events are written with a header which specifies how large the record is and how
+      many arguments it has, which means you need to pre-commit to how many arguments of
+      each type you will later write for an event. This is checked and will throw an
+      exception if you write another event or close the writer without having written the
+      correct arguments. *)
   module Arg_types : sig
     type t
 
@@ -173,10 +173,9 @@ module type S = sig
       by trace viewers as a chart over time. Its arguments must be numerical and there
       should be at least one.
 
-      The counter ID is in theory for associating events that should be plotted on the same
-      graph but in practice Perfetto ignores it and uses the name. The [Tracing.Trace]
-      wrapper chooses an ID based on the name to match this.
-  *)
+      The counter ID is in theory for associating events that should be plotted on the
+      same graph but in practice Perfetto ignores it and uses the name. The
+      [Tracing.Trace] wrapper chooses an ID based on the name to match this. *)
   val write_counter : (counter_id:int -> unit) event_writer
 
   (** Begin a duration slice which will be finished with a matching end event. *)
@@ -239,17 +238,17 @@ module type S = sig
     (** Writes raw byte stream to the current destination. *)
     val write_iobuf : t -> buf:(read, Iobuf.seek) Iobuf.t -> unit
 
-    (** Interns a string directly to the specified slot (whereas [set_temp_string_slot] may
-        shift the index since certain indices are reserved for internal use). Will raise
-        when setting slot 1 to any string other than "process".
+    (** Interns a string directly to the specified slot (whereas [set_temp_string_slot]
+        may shift the index since certain indices are reserved for internal use). Will
+        raise when setting slot 1 to any string other than "process".
 
-        Useful for preserving the string ID usage of parsed traces in a way that can lead to
-        exact byte equality after a round trip through parsing and writing. *)
+        Useful for preserving the string ID usage of parsed traces in a way that can lead
+        to exact byte equality after a round trip through parsing and writing. *)
     val set_string_slot : t -> slot:int -> string -> String_id.t
 
-    (** Immediately ask the destination for a new buffer even if the current one isn't full.
-        This is intended for use by the probe infrastructure when a destination for the
-        global writer is initialized. *)
+    (** Immediately ask the destination for a new buffer even if the current one isn't
+        full. This is intended for use by the probe infrastructure when a destination for
+        the global writer is initialized. *)
     val force_switch_buffers : t -> unit
 
     (** Finish all pending writes to underlying buffer.
@@ -290,17 +289,18 @@ module type S = sig
       -> name:String_id.t
       -> header
 
-    (** Interns a string into one of 17 temporary slots reserved for ppx_tracing. These slots
-        are exclusively used to store the category, name, and names of arguments when they
-        cannot be interned globally. Unlike [set_temp_string_slot], strings interned to
-        these slots are valid *only* immediately after interning, as the slot will be reused
-        in subsequent probes. *)
+    (** Interns a string into one of 17 temporary slots reserved for ppx_tracing. These
+        slots are exclusively used to store the category, name, and names of arguments
+        when they cannot be interned globally. Unlike [set_temp_string_slot], strings
+        interned to these slots are valid *only* immediately after interning, as the slot
+        will be reused in subsequent probes. *)
     val set_dyn_slot : t -> slot:int -> string -> String_id.t
 
     (** Write an event using a pre-composed header, and using less safety checking than
-        the normal event writing functions, intended for low-overhead probe instrumentation.
-        Also uses the [rdtsc] counter for the ticks field, meaning this [Writer] must have
-        been created with a calibrated [ticks_per_second] field to have correct timing.
+        the normal event writing functions, intended for low-overhead probe
+        instrumentation. Also uses the [rdtsc] counter for the ticks field, meaning this
+        [Writer] must have been created with a calibrated [ticks_per_second] field to have
+        correct timing.
 
         The pre-composition itself saves about 3ns per event. The omission of unnecessary
         checks saves additional time. Overall in benchmarks this is about 2x faster than
@@ -312,12 +312,12 @@ module type S = sig
         [Write_arg_unchecked] because it doesn't set the necessary state for checking. *)
     val write_from_header_with_tsc : t -> header:header -> unit
 
-    (** Same as [write_from_header_with_tsc] but but returns ticks.
-        See [Tracing.Writer.write_duration_instant]. *)
+    (** Same as [write_from_header_with_tsc] but but returns ticks. See
+        [Tracing.Writer.write_duration_instant]. *)
     val write_from_header_and_get_tsc : t -> header:header -> Time_stamp_counter.t
 
-    (** Unchecked writing of the result of [write_from_header_and_get_tsc] after
-        the arguments. *)
+    (** Unchecked writing of the result of [write_from_header_and_get_tsc] after the
+        arguments. *)
     val write_tsc : t -> Time_stamp_counter.t -> unit
 
     (** Unchecked write of a string stream. *)
@@ -329,8 +329,7 @@ module type S = sig
     (** Enables or disables mapping [String_id.t] to [string] when interning strings.
 
         Use with caution: Enabling this will allocate upon interning strings and cost an
-        additional [Hashtbl.add] call.
-    *)
+        additional [Hashtbl.add] call. *)
     val set_string_map_allocate_on_intern : t -> enable:bool -> unit
 
     (** Returns a string represented by the corresponding [String_id.t] *)
