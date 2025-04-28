@@ -1,5 +1,4 @@
 open! Core
-module Time_ns = Time_ns_unix
 module Writer = Tracing_zero.Writer
 
 type t =
