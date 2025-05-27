@@ -75,6 +75,8 @@ module type S = sig
     val of_int : int -> t
   end
 
+  val max_interned_string_length : int
+
   (** Intern a string into the trace so that it can be referred to with very low cost.
       Note that this does not check if the string has already been interned, see
       [intern_string_cached].

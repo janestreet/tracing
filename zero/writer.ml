@@ -164,9 +164,12 @@ module String_id = struct
   let of_int slot = slot
 end
 
+(* maximum string length defined in spec, somewhat less than 2**15 *)
+let max_interned_string_length = 32000 - 1
+
 let check_string_length length =
   (* maximum string length defined in spec, somewhat less than 2**15 *)
-  if length >= 32000
+  if length > max_interned_string_length
   then failwithf "string too long for FTF trace: %i is over the limit of 32kb" length ()
 ;;
 
