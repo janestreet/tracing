@@ -68,7 +68,7 @@ module type S = sig
   val write_tick_initialization : t -> Tick_translation.t -> unit
 
   module String_id : sig
-    type t [@@deriving equal] [@@immediate]
+    type t [@@deriving equal ~localize] [@@immediate]
 
     val empty : t
     val max_number_of_temp_string_slots : int

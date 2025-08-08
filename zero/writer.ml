@@ -152,7 +152,7 @@ let write_string_stream t s =
 ;;
 
 module String_id = struct
-  type t = int [@@deriving equal]
+  type t = int [@@deriving equal ~localize]
 
   let empty = 0
   let process = 1
