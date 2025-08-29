@@ -291,6 +291,10 @@ module type S = sig
       -> name:String_id.t
       -> header
 
+    (** Provides a way to get the String_id.t of the slots that are reserved for higher
+        level libraries. *)
+    val get_dyn_slot : slot:int -> String_id.t
+
     (** Interns a string into one of 17 temporary slots reserved for ppx_tracing. These
         slots are exclusively used to store the category, name, and names of arguments
         when they cannot be interned globally. Unlike [set_temp_string_slot], strings

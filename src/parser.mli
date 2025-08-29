@@ -121,6 +121,14 @@ val set_buffer : t -> (read, Iobuf.seek) Iobuf.t -> unit
     garbage values in the next call to [parse_next]. *)
 val parse_next : t -> (Record.t, Parse_error.t) Result.t
 
+(** Has the same functionality as [parse_next] but can be suplied with an [Iobuf.t] that's
+    different from the internal buffer of the parser. The parser will continue using and
+    updating its internal state (ex. interned strings) *)
+val parse_next_with_buffer
+  :  t
+  -> (read, Iobuf.seek) Iobuf.t
+  -> (Record.t, Parse_error.t) Result.t
+
 val warnings : t -> Warnings.t
 
 exception String_not_found
