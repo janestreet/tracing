@@ -1,0 +1,6 @@
+(library
+ (name tracing_parser)
+ (public_name tracing.tracing_parser)
+ (libraries core core_kernel.iobuf)
+ (preprocess
+  (pps ppx_jane)))

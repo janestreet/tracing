@@ -1,4 +1,5 @@
 open! Core
+module Parser = Tracing_parser
 module Writer = Tracing_zero.Writer
 
 type t =

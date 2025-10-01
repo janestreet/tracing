@@ -6,11 +6,11 @@
     or a parse error. *)
 open! Core
 
-include module type of Parser_intf
+include module type of Tracing_parser_intf
 
 (** String indices are in the range [1, 32767]. *)
 module String_index : sig
-  type t = private int [@@deriving sexp_of, compare, hash, equal]
+  type t = private int [@@deriving sexp_of, compare ~localize, hash, equal ~localize]
 
   val to_int : t -> int
   val zero : t
@@ -20,12 +20,12 @@ module String_ref : sig
   type t =
     | String_index of String_index.t
     | Inline_string of string
-  [@@deriving sexp_of, compare, hash, equal]
+  [@@deriving sexp_of, compare ~localize, hash, equal ~localize]
 end
 
 (** Thread indices are in the range [1, 255]. *)
 module Thread_index : sig
-  type t = private int [@@deriving sexp_of, compare, hash, equal]
+  type t = private int [@@deriving sexp_of, compare ~localize, hash, equal ~localize]
 
   val to_int : t -> int
 end
@@ -37,9 +37,9 @@ module Event_arg : sig
     | Int64 of int64
     | Pointer of Int64.Hex.t
     | Float of float
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 
-  type t = String_index.t * value [@@deriving sexp_of, compare]
+  type t = String_index.t * value [@@deriving sexp_of, compare ~localize]
 end
 
 module Event : sig
@@ -51,7 +51,7 @@ module Event : sig
     ; arguments : Event_arg.t list
     ; event_type : Event_type.t
     }
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 end
 
 module Record : sig
@@ -88,7 +88,7 @@ module Record : sig
         { ticks_per_second : int
         ; base_time : Time_ns.Option.t
         }
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 end
 
 type t
@@ -120,6 +120,14 @@ val set_buffer : t -> (read, Iobuf.seek) Iobuf.t -> unit
     incorrect then the parser may enter an invalid state and skip over records/read
     garbage values in the next call to [parse_next]. *)
 val parse_next : t -> (Record.t, Parse_error.t) Result.t
+
+(** Has the same functionality as [parse_next] but can be suplied with an [Iobuf.t] that's
+    different from the internal buffer of the parser. The parser will continue using and
+    updating its internal state (ex. interned strings) *)
+val parse_next_with_buffer
+  :  t
+  -> local_ (read, Iobuf.seek) Iobuf.t
+  -> (Record.t, Parse_error.t) Result.t
 
 val warnings : t -> Warnings.t
 
