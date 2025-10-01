@@ -14,4 +14,4 @@ val create : Tracing_zero.Writer.t -> t
 
 (* May raise if attempting to write strings/threads on records before writing the
    corresponding [Interned_string] or [Interned_thread] records. *)
-val write_record : t -> record:Parser.Record.t -> unit
+val write_record : t -> record:Tracing_parser.Record.t -> unit

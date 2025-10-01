@@ -1,5 +1,5 @@
 open! Core
-include Parser_intf
+include Tracing_parser_intf
 
 (* Stores thread kernel objects as a tuple of (pid, tid) *)
 module Thread_kernel_object = struct
@@ -168,16 +168,16 @@ let consume_int64_t_exn iobuf =
    8 bytes. This is an efficient expression for doing that. *)
 let padding_to_word x = -x land (8 - 1)
 
-let consume_tail_padded_string_exn
-  ?(padded_with = Char.min_value)
-  iobuf
-  ~len_without_padding
-  =
-  (* In Fuchsia, inlined strings need to be padded to 8 bytes *)
-  let len = len_without_padding + padding_to_word len_without_padding in
-  if Iobuf.length iobuf < len
+let consume_tail_padded_string_exn iobuf ~len_without_padding =
+  let padding = padding_to_word len_without_padding in
+  if Iobuf.length iobuf < len_without_padding + padding
   then raise Invalid_record
-  else Iobuf.Consume.tail_padded_fixed_string ~padding:padded_with ~len iobuf
+  else (
+    let str = Iobuf.Consume.string iobuf ~str_pos:0 ~len:len_without_padding in
+    (* In Fuchsia, inlined strings need to be padded to 8 bytes, so we advance past the
+    padding *)
+    Iobuf.advance iobuf padding;
+    str)
 ;;
 
 let advance_iobuf_exn iobuf ~by:len =

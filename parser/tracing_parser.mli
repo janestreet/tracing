@@ -6,7 +6,7 @@
     or a parse error. *)
 open! Core
 
-include module type of Parser_intf
+include module type of Tracing_parser_intf
 
 (** String indices are in the range [1, 32767]. *)
 module String_index : sig

@@ -1,5 +1,6 @@
 open Core
 open Tracing_zero
+module Parser = Tracing_parser
 
 module Process = struct
   type t = { pid : int } [@@deriving sexp_of, compare ~localize, hash, equal ~localize]

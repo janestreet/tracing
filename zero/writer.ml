@@ -186,7 +186,8 @@ let check_string_length length =
 let set_string_slot t ~string_id s =
   let str_len = String.length s in
   check_string_length str_len;
-  if t.string_map_enabled then Hashtbl.add_exn t.original_string ~key:string_id ~data:s;
+  if t.string_map_enabled
+  then Hashtbl.add_exn t.original_string ~key:string_id ~data:(String.globalize s);
   (* String record *)
   let rtype = 2 in
   let rsize = 1 + round_words_for str_len in
@@ -697,7 +698,7 @@ module Expert = struct
     if slot <= 0 then failwithf "string slot must be positive: slot %i <= 0" slot ();
     if slot = String_id.process
     then (
-      if not String.(s = "process")
+      if not (String.equal__local s "process")
       then failwith "tried to overwrite the slot for the process string")
     else set_string_slot t ~string_id:slot s;
     slot
