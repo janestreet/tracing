@@ -141,7 +141,7 @@ let padding_to_word x = -x land (8 - 1)
 let round_words_for bytes = (bytes + 8 - 1) / 8
 let provider_name = "jane_tracing"
 
-let write_string_stream t s =
+let write_string_stream t (local_ s) =
   let len = String.length s in
   let padding = padding_to_word len in
   ensure_capacity t (len + padding);
@@ -152,28 +152,42 @@ let write_string_stream t s =
 ;;
 
 module String_id = struct
-  type t = int [@@deriving equal]
+  type t = int [@@deriving equal ~localize]
 
+  (* For our purposes there are a few types of [String_id]s organized as follows:
+    > [empty] - reserved for the empty string
+    > [process] - reserved for ["process"]
+    > [first_dyn .. first_temp - 1] - reserved for use by higher level libraries,
+      accesed via [Expert.set_dyn_slot]
+    > [first-temp .. first_temp + num_temp_strs - 1] - temporary strings modifiable
+      by users via [intern_temp_string]. [num_temp_strs] set at creation, default 100.
+    > [first_temp + num_temp_strs .. max_value] - are permanent strings set
+      via [intern_string].
+  *)
   let empty = 0
   let process = 1
   let first_dyn = 2
-  let num_dyn = 17
-  let first_temp = 19
+  let first_temp = 20
+  let num_dyn = first_temp - first_dyn
   let max_value = (1 lsl 15) - 1
   let max_number_of_temp_string_slots = max_value - first_temp + 1
   let of_int slot = slot
 end
 
+(* maximum string length defined in spec, somewhat less than 2**15 *)
+let max_interned_string_length = 32000 - 1
+
 let check_string_length length =
   (* maximum string length defined in spec, somewhat less than 2**15 *)
-  if length >= 32000
+  if length > max_interned_string_length
   then failwithf "string too long for FTF trace: %i is over the limit of 32kb" length ()
 ;;
 
-let set_string_slot t ~string_id s =
+let set_string_slot t ~string_id (local_ s) =
   let str_len = String.length s in
   check_string_length str_len;
-  if t.string_map_enabled then Hashtbl.add_exn t.original_string ~key:string_id ~data:s;
+  if t.string_map_enabled
+  then Hashtbl.add_exn t.original_string ~key:string_id ~data:(String.globalize s);
   (* String record *)
   let rtype = 2 in
   let rsize = 1 + round_words_for str_len in
@@ -664,22 +678,27 @@ module Expert = struct
     done
   ;;
 
-  let set_dyn_slot t ~slot s =
+  let get_dyn_slot ~slot =
     if slot >= String_id.num_dyn
     then
       failwithf "dynamic string slot over the limit: %i >= %i" slot String_id.num_dyn ();
     if slot < 0
     then failwithf "dynamic string slot must not be negative: slot %i < 0" slot ();
     let string_id = slot + String_id.first_dyn in
+    string_id
+  ;;
+
+  let set_dyn_slot t ~slot (local_ s) =
+    let string_id = get_dyn_slot ~slot in
     set_string_slot t ~string_id s;
     string_id
   ;;
 
-  let set_string_slot t ~slot s =
+  let set_string_slot t ~slot (local_ s) =
     if slot <= 0 then failwithf "string slot must be positive: slot %i <= 0" slot ();
     if slot = String_id.process
     then (
-      if not String.(s = "process")
+      if not (String.equal__local s "process")
       then failwith "tried to overwrite the slot for the process string")
     else set_string_slot t ~string_id:slot s;
     slot

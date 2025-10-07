@@ -1,5 +1,5 @@
 open! Core
-include Parser_intf
+include Tracing_parser_intf
 
 (* Stores thread kernel objects as a tuple of (pid, tid) *)
 module Thread_kernel_object = struct
@@ -14,7 +14,7 @@ module String_ref = struct
   type t =
     | String_index of String_index.t
     | Inline_string of string
-  [@@deriving sexp_of, compare, hash, equal]
+  [@@deriving sexp_of, compare ~localize, hash, equal ~localize]
 end
 
 module Event_arg = struct
@@ -24,9 +24,9 @@ module Event_arg = struct
     | Int64 of int64
     | Pointer of Int64.Hex.t
     | Float of float
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 
-  type t = String_index.t * value [@@deriving sexp_of, compare]
+  type t = String_index.t * value [@@deriving sexp_of, compare ~localize]
 end
 
 module Event = struct
@@ -38,7 +38,7 @@ module Event = struct
     ; arguments : Event_arg.t list
     ; event_type : Event_type.t
     }
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 end
 
 module Record = struct
@@ -65,7 +65,7 @@ module Record = struct
         { ticks_per_second : int
         ; base_time : Time_ns.Option.t
         }
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 
   let sexp_of_t t =
     let sexp = sexp_of_t t in
@@ -164,10 +164,20 @@ let consume_int64_t_exn iobuf =
   if Iobuf.length iobuf < 8 then raise Invalid_record else Iobuf.Consume.int64_t_le iobuf
 ;;
 
-let consume_tail_padded_string_exn ?(padding = Char.min_value) iobuf ~len =
-  if Iobuf.length iobuf < len
+(* Because the format guarantees aligned 64-bit words, some things need to be padded to
+   8 bytes. This is an efficient expression for doing that. *)
+let padding_to_word x = -x land (8 - 1)
+
+let consume_tail_padded_string_exn iobuf ~len_without_padding =
+  let padding = padding_to_word len_without_padding in
+  if Iobuf.length iobuf < len_without_padding + padding
   then raise Invalid_record
-  else Iobuf.Consume.tail_padded_fixed_string ~padding ~len iobuf
+  else (
+    let str = Iobuf.Consume.string iobuf ~str_pos:0 ~len:len_without_padding in
+    (* In Fuchsia, inlined strings need to be padded to 8 bytes, so we advance past the
+    padding *)
+    Iobuf.advance iobuf padding;
+    str)
 ;;
 
 let advance_iobuf_exn iobuf ~by:len =
@@ -175,10 +185,6 @@ let advance_iobuf_exn iobuf ~by:len =
 ;;
 
 let[@inline] extract_field word ~pos ~size = (word lsr pos) land ((1 lsl size) - 1)
-
-(* Because the format guarantees aligned 64-bit words, some things need to be padded to
-   8 bytes. This is an efficient expression for doing that. *)
-let padding_to_word x = -x land (8 - 1)
 
 (* Method for converting a tick count to nanoseconds taken from the Perfetto source code.
    Raises [Ticks_too_large] if the result doesn't fit in an int63.
@@ -230,11 +236,6 @@ let lookup_thread_exn t ~index =
   | _ -> raise Thread_not_found
 ;;
 
-let[@inline] consume_string_stream t ~length:len =
-  (* 8-byte padding is used for string streams in Fuchsia. *)
-  consume_tail_padded_string_exn t ~len ~padding:(Char.of_int_exn 8)
-;;
-
 let[@inline] raise_on_index_not_found t ~index =
   (* raise an exception if the string is not in the string table *)
   if t.raise_on_not_found then lookup_string_exn t ~index |> (ignore : string -> unit)
@@ -257,8 +258,8 @@ let[@inline] extract_string_ref t word ~pos =
   let inline_string_flag = 1 lsl 15 in
   if string_ref land inline_string_flag > 0
   then (
-    let length = string_ref lxor inline_string_flag in
-    let string = consume_string_stream t.cur_record ~length in
+    let len = string_ref lxor inline_string_flag in
+    let string = consume_tail_padded_string_exn t.cur_record ~len_without_padding:len in
     String_ref.Inline_string string)
   else (
     let index = string_ref in
@@ -289,10 +290,9 @@ let parse_metadata_record t =
   match mtype with
   | 1 (* Provider info metadata *) ->
     let provider_id = extract_field header ~pos:20 ~size:32 in
-    let name_len = extract_field header ~pos:52 ~size:8 in
-    let padding = padding_to_word name_len in
+    let len = extract_field header ~pos:52 ~size:8 in
     let provider_name =
-      consume_tail_padded_string_exn t.cur_record ~len:(name_len + padding)
+      consume_tail_padded_string_exn t.cur_record ~len_without_padding:len
     in
     Hashtbl.set t.provider_name_by_id ~key:provider_id ~data:provider_name;
     t.current_provider <- Some provider_id
@@ -341,10 +341,9 @@ let parse_string_record t =
   if string_index = 0
   then None
   else (
-    let str_len = extract_field header ~pos:32 ~size:15 in
-    let padding = padding_to_word str_len in
+    let len = extract_field header ~pos:32 ~size:15 in
     let interned_string =
-      consume_tail_padded_string_exn t.cur_record ~len:(str_len + padding)
+      consume_tail_padded_string_exn t.cur_record ~len_without_padding:len
     in
     Hashtbl.set t.string_table ~key:string_index ~data:interned_string;
     Some (Record.Interned_string { index = string_index; value = interned_string }))
@@ -523,12 +522,7 @@ let parse_event_record t =
 
 (* This function advances through the trace until it finds a Fuschia record matching one
    of the records types defined in [Record.t]. *)
-let rec parse_until_next_external_record t =
-  let iobuf =
-    match t.iobuf with
-    | None -> raise End_of_file
-    | Some iobuf -> iobuf
-  in
+let rec parse_until_next_external_record t iobuf =
   if Iobuf.length iobuf < 8 then raise End_of_file;
   let header = Iobuf.Peek.int64_le_trunc iobuf ~pos:0 in
   let rtype = extract_field header ~pos:0 ~size:4 in
@@ -562,12 +556,12 @@ let rec parse_until_next_external_record t =
   in
   match record with
   | Some record -> record
-  | None -> parse_until_next_external_record t
+  | None -> parse_until_next_external_record t iobuf
 ;;
 
-let parse_next t =
+let parse_next_with_buffer t iobuf =
   try
-    let record = parse_until_next_external_record t in
+    let record = parse_until_next_external_record t iobuf in
     Result.return record
   with
   | End_of_file -> Result.fail Parse_error.No_more_words
@@ -587,4 +581,13 @@ let parse_next t =
   | Thread_not_found ->
     t.warnings.num_unparsed_records <- t.warnings.num_unparsed_records + 1;
     Result.fail Parse_error.Invalid_thread_ref
+;;
+
+let parse_next t =
+  let iobuf =
+    match t.iobuf with
+    | None -> raise End_of_file
+    | Some iobuf -> iobuf
+  in
+  parse_next_with_buffer t iobuf
 ;;

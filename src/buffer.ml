@@ -1,8 +1,9 @@
 open Core
 open Tracing_zero
+module Parser = Tracing_parser
 
 module Process = struct
-  type t = { pid : int } [@@deriving sexp_of, compare, hash, equal]
+  type t = { pid : int } [@@deriving sexp_of, compare ~localize, hash, equal ~localize]
 end
 
 module Thread = struct
@@ -10,7 +11,7 @@ module Thread = struct
     { pid : int
     ; tid : int
     }
-  [@@deriving sexp_of, compare, hash, equal]
+  [@@deriving sexp_of, compare ~localize, hash, equal ~localize]
 end
 
 module Ticks = struct

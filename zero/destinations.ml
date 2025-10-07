@@ -52,7 +52,12 @@ let black_hole_destination ~len ~touch_memory =
     let next_buf ~ensure_capacity =
       Iobuf.reset buf;
       if ensure_capacity > Iobuf.length buf
-      then failwith "Record too large for [black_hole_destination]";
+      then
+        raise_s
+          [%message
+            "Record too large for [black_hole_destination]"
+              (ensure_capacity : int)
+              ~destination_capacity:(Iobuf.length buf : int)];
       buf
     ;;
 

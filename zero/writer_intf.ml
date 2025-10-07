@@ -68,12 +68,14 @@ module type S = sig
   val write_tick_initialization : t -> Tick_translation.t -> unit
 
   module String_id : sig
-    type t : immediate [@@deriving equal]
+    type t : immediate [@@deriving equal ~localize]
 
     val empty : t
     val max_number_of_temp_string_slots : int
     val of_int : int -> t
   end
+
+  val max_interned_string_length : int
 
   (** Intern a string into the trace so that it can be referred to with very low cost.
       Note that this does not check if the string has already been interned, see
@@ -244,7 +246,7 @@ module type S = sig
 
         Useful for preserving the string ID usage of parsed traces in a way that can lead
         to exact byte equality after a round trip through parsing and writing. *)
-    val set_string_slot : t -> slot:int -> string -> String_id.t
+    val set_string_slot : t -> slot:int -> local_ string -> String_id.t
 
     (** Immediately ask the destination for a new buffer even if the current one isn't
         full. This is intended for use by the probe infrastructure when a destination for
@@ -289,12 +291,16 @@ module type S = sig
       -> name:String_id.t
       -> header
 
+    (** Provides a way to get the String_id.t of the slots that are reserved for higher
+        level libraries. *)
+    val get_dyn_slot : slot:int -> String_id.t
+
     (** Interns a string into one of 17 temporary slots reserved for ppx_tracing. These
         slots are exclusively used to store the category, name, and names of arguments
         when they cannot be interned globally. Unlike [set_temp_string_slot], strings
         interned to these slots are valid *only* immediately after interning, as the slot
         will be reused in subsequent probes. *)
-    val set_dyn_slot : t -> slot:int -> string -> String_id.t
+    val set_dyn_slot : t -> slot:int -> local_ string -> String_id.t
 
     (** Write an event using a pre-composed header, and using less safety checking than
         the normal event writing functions, intended for low-overhead probe
@@ -321,7 +327,7 @@ module type S = sig
     val write_tsc : t -> Time_stamp_counter.t -> unit
 
     (** Unchecked write of a string stream. *)
-    val write_string_stream : t -> string -> unit
+    val write_string_stream : t -> local_ string -> unit
 
     (** Unchecked write of a correlation id to complete an async event. *)
     val write_async_id : t -> int -> unit

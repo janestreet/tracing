@@ -13,7 +13,7 @@ module Event_type = struct
     | Flow_begin of { flow_correlation_id : int }
     | Flow_step of { flow_correlation_id : int }
     | Flow_end of { flow_correlation_id : int }
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 end
 
 module Thread = struct
@@ -23,7 +23,7 @@ module Thread = struct
     ; mutable process_name : string option
     ; mutable thread_name : string option
     }
-  [@@deriving sexp_of, compare]
+  [@@deriving sexp_of, compare ~localize]
 end
 
 module Parse_error = struct
