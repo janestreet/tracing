@@ -4,14 +4,14 @@ open! Core
     After the [Destination] is closed, sets the window of the [Iobuf.t] to the data
     written. *)
 val iobuf_destination
-  :  (read_write, Iobuf.seek) Iobuf.t
+  :  (read_write, Iobuf.seek, Iobuf.global) Iobuf.t
   -> (module Writer_intf.Destination)
 
 (** Write to a provided [Iobuf.t], throws an exception if the buffer runs out of space.
     Dynamically updates the window of the [Iobuf.t] as data is written, and does not set
     the window to the data writen on closure. *)
 val raw_iobuf_destination
-  :  (read_write, Iobuf.seek) Iobuf.t
+  :  (read_write, Iobuf.seek, Iobuf.global) Iobuf.t
   -> (module Writer_intf.Destination)
 
 (** Creates a new buffer, which is reset and reused on every call to [next_buf],

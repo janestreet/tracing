@@ -19,11 +19,11 @@ val create : ?num_temp_strs:int -> size_bits:int -> unit -> t
 
     If the buffer ends with a partial event, only data until (and not including) the final
     partial event's header is consumed from the iobuf. *)
-val consume : t -> (read, Iobuf.seek) Iobuf.t -> unit
+val consume : t -> (read, Iobuf.seek, Iobuf.global) Iobuf.t -> unit
 
 (** Equivalent to [consume], but if any events fail to parse/validate, returns an error
     status indicating how many events were skipped for what reasons. *)
-val try_consume : t -> (read, Iobuf.seek) Iobuf.t -> unit Or_error.t
+val try_consume : t -> (read, Iobuf.seek, Iobuf.global) Iobuf.t -> unit Or_error.t
 
 (** Write out a valid trace including all currently buffered trace events. Creating a
     valid trace also requires reproducing state (e.g. string interning) referred to by the

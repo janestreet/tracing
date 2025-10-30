@@ -99,13 +99,17 @@ type t
     If [ignore_not_found] is specified, the parser will not raise when parsing events that
     refer to interned thread and string indices that have not yet been set. Instead, the
     event will be returned including the unknown indices. *)
-val create : ?ignore_not_found:bool -> ?buffer:(read, Iobuf.seek) Iobuf.t -> unit -> t
+val create
+  :  ?ignore_not_found:bool
+  -> ?buffer:(read, Iobuf.seek, Iobuf.global) Iobuf.t
+  -> unit
+  -> t
 
 (** Provides a new data buffer for the parser to continue reading from. Optionally
     prepends [prefix] to the buffer, allowing the user to preserve state returned by
     [Parse_error.Incomplete_record]. If the new buffer completes the record, it will be
     returned by the next call to [parse_next]. *)
-val set_buffer : t -> (read, Iobuf.seek) Iobuf.t -> unit
+val set_buffer : t -> (read, Iobuf.seek, Iobuf.global) Iobuf.t -> unit
 
 (** Advance through the trace until we find a Fuchsia record matching one of the record
     types defined above.
@@ -126,7 +130,7 @@ val parse_next : t -> (Record.t, Parse_error.t) Result.t
     updating its internal state (ex. interned strings) *)
 val parse_next_with_buffer
   :  t
-  -> (read, Iobuf.seek) Iobuf.t
+  -> (read, Iobuf.seek, Iobuf.global) Iobuf.t
   -> (Record.t, Parse_error.t) Result.t
 
 val warnings : t -> Warnings.t
