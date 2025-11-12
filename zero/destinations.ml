@@ -82,7 +82,8 @@ end = struct
     ; dest : (module Writer_intf.Destination)
     }
 
-  type internal = { mutable buffers : (read_write, Iobuf.seek) Iobuf.t list }
+  type internal =
+    { mutable buffers : (read_write, Iobuf.seek, Iobuf.global) Iobuf.t list }
 
   let create () =
     let t = { buffers = [] } in

@@ -129,7 +129,7 @@ module Checkpoint = struct
   (** Data necessary to describe a span of tracing events. *)
   type t =
     { begin_state : State.t
-    ; data : (read_write, Iobuf.seek) Iobuf.t
+    ; data : (read_write, Iobuf.seek, Iobuf.global) Iobuf.t
     ; destination : (module Writer_intf.Destination)
     ; refs : State.References.t
     }
