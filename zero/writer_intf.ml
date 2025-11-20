@@ -34,6 +34,7 @@ module type Arg_writers = sig
   val int64 : t -> name:string_id -> int64 -> unit
   val pointer : t -> name:string_id -> int64 -> unit
   val float : t -> name:string_id -> float -> unit
+  val bool : t -> name:string_id -> bool -> unit
 end
 
 module Tick_translation = struct
@@ -146,6 +147,7 @@ module type S = sig
     val create
       :  ?int64s:int
       -> ?int32s:int
+      -> ?bools:int
       -> ?floats:int
       -> ?interned_strings:int
       -> ?inlined_strings:int

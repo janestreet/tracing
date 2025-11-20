@@ -50,9 +50,9 @@ let write_demo_trace t =
     ~ticks:23_000_000
     ~async_id:1;
   TW.Write_arg.int32 t ~name:category 2;
-  (* This flow event is out of time order to match the way the helper library writes
-     flow events by buffering them until the next event in order to know which type
-     of flow event should be emitted. *)
+  (* This flow event is out of time order to match the way the helper library writes flow
+     events by buffering them until the next event in order to know which type of flow
+     event should be emitted. *)
   TW.write_flow_begin t ~thread ~ticks:2_000_000 ~flow_id:1;
   TW.write_instant
     t
