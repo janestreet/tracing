@@ -19,14 +19,15 @@ end
 
 module Event_arg = struct
   type value =
-    | String of String_index.t
+    | String of String_ref.t
     | Int of int
     | Int64 of int64
     | Pointer of Int64.Hex.t
     | Float of float
+    | Bool of bool
   [@@deriving sexp_of, compare ~localize]
 
-  type t = String_index.t * value [@@deriving sexp_of, compare ~localize]
+  type t = String_ref.t * value [@@deriving sexp_of, compare ~localize]
 end
 
 module Event = struct
@@ -164,8 +165,8 @@ let consume_int64_t_exn iobuf =
   if Iobuf.length iobuf < 8 then raise Invalid_record else Iobuf.Consume.int64_t_le iobuf
 ;;
 
-(* Because the format guarantees aligned 64-bit words, some things need to be padded to
-   8 bytes. This is an efficient expression for doing that. *)
+(* Because the format guarantees aligned 64-bit words, some things need to be padded to 8
+   bytes. This is an efficient expression for doing that. *)
 let padding_to_word x = -x land (8 - 1)
 
 let consume_tail_padded_string_exn iobuf ~len_without_padding =
@@ -175,7 +176,7 @@ let consume_tail_padded_string_exn iobuf ~len_without_padding =
   else (
     let str = Iobuf.Consume.string iobuf ~str_pos:0 ~len:len_without_padding in
     (* In Fuchsia, inlined strings need to be padded to 8 bytes, so we advance past the
-    padding *)
+       padding *)
     Iobuf.advance iobuf padding;
     str)
 ;;
@@ -189,11 +190,11 @@ let[@inline] extract_field word ~pos ~size = (word lsr pos) land ((1 lsl size) -
 (* Method for converting a tick count to nanoseconds taken from the Perfetto source code.
    Raises [Ticks_too_large] if the result doesn't fit in an int63.
 
-   This implements a kind of elementary school long multiplication to handle larger
-   values without overflowing in the intermediate steps or losing precision. We do
-   this complicated method instead of just using floats because it's nice if our
-   tools don't lose precision if a ticks value is an absolute [Time_ns.t], even if
-   those traces won't work perfectly in the Perfetto web UI. *)
+   This implements a kind of elementary school long multiplication to handle larger values
+   without overflowing in the intermediate steps or losing precision. We do this
+   complicated method instead of just using floats because it's nice if our tools don't
+   lose precision if a ticks value is an absolute [Time_ns.t], even if those traces won't
+   work perfectly in the Perfetto web UI. *)
 let ticks_to_ns ticks ~ticks_per_sec =
   let ticks_hi = ticks lsr 32 in
   let ticks_lo = ticks land ((1 lsl 32) - 1) in
@@ -242,11 +243,11 @@ let[@inline] raise_on_index_not_found t ~index =
 ;;
 
 (* Extracts a 16-bit string index. Will raise if the string index isn't in the string
-   table or if attempting to read an inline string reference.
-   Since inline string references have their highest bit set to 1 and use the lower 15
-   bits to indicate the length of the string stream, the value will always be >= 32768.
-   Values >= 32768 will never be in the string table because in [parse_string_record],
-   we only write strings to indices [1, 32767]. *)
+   table or if attempting to read an inline string reference. Since inline string
+   references have their highest bit set to 1 and use the lower 15 bits to indicate the
+   length of the string stream, the value will always be >= 32768. Values >= 32768 will
+   never be in the string table because in [parse_string_record], we only write strings to
+   indices [1, 32767]. *)
 let[@inline] extract_string_index t word ~pos =
   let index = extract_field word ~pos ~size:16 in
   raise_on_index_not_found t ~index;
@@ -267,8 +268,8 @@ let[@inline] extract_string_ref t word ~pos =
     String_ref.String_index index)
 ;;
 
-(* Extracts an 8-bit thread index. Will raise if the thread index isn't in the
-   thread table. *)
+(* Extracts an 8-bit thread index. Will raise if the thread index isn't in the thread
+   table. *)
 let[@inline] extract_thread_index t word ~pos =
   let index = extract_field word ~pos ~size:8 in
   (* raise an exception if the thread is not in the thread table *)
@@ -332,6 +333,7 @@ let parse_initialization_record t =
 ;;
 
 (* Reads a zero-padded string and stores it at the associated 15-bit index (from 1 to
+
    32767) in the string table. *)
 let parse_string_record t =
   let header = consume_int64_trunc_exn t.cur_record in
@@ -376,12 +378,12 @@ let rec parse_args ?(args = []) t ~num_args =
   then List.rev args
   else (
     let header_low_word = consume_int32_exn t.cur_record in
-    let arg_type = extract_field header_low_word ~pos:0 ~size:4 in
-    let rsize = extract_field header_low_word ~pos:4 ~size:12 in
-    let arg_name = extract_string_index t header_low_word ~pos:16 in
     (* The Fuchsia spec says the upper 32-bits of the header are reserved for future
        extensions, and should just be ignored if they aren't used. *)
     let header_high_word = consume_int32_exn t.cur_record in
+    let arg_type = extract_field header_low_word ~pos:0 ~size:4 in
+    let rsize = extract_field header_low_word ~pos:4 ~size:12 in
+    let arg_name = extract_string_ref t header_low_word ~pos:16 in
     let (args : Event_arg.t list) =
       match arg_type with
       (* arg_type 0 is a null argument with no value. We never write these so we just
@@ -400,11 +402,14 @@ let rec parse_args ?(args = []) t ~num_args =
         let value = Int64.float_of_bits value_as_int64 in
         (arg_name, Float value) :: args
       | 6 ->
-        let value = extract_string_index t header_high_word ~pos:0 in
+        let value = extract_string_ref t header_high_word ~pos:0 in
         (arg_name, String value) :: args
       | 7 ->
         let value = consume_int64_t_exn t.cur_record in
         (arg_name, Pointer value) :: args
+      | 9 ->
+        let value = header_high_word land 1 <> 0 in
+        (arg_name, Bool value) :: args
       | _ ->
         (* Advance [rsize - 1] words to the next argument after reading the header word. *)
         advance_iobuf_exn t.cur_record ~by:(8 * (rsize - 1));

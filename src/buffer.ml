@@ -155,9 +155,9 @@ module Checkpoint = struct
 
   let process_args t =
     List.iter ~f:(fun (name, arg) ->
-      process_string_index t name;
+      process_string_ref t name;
       match arg with
-      | Parser.Event_arg.String idx -> process_string_index t idx
+      | Parser.Event_arg.String string_ref -> process_string_ref t string_ref
       | _ -> ())
   ;;
 
@@ -239,7 +239,7 @@ type t =
   ; errors : Parser_errors.t
   ; mutable empty : bool
       (* Store two checkpoints as a double buffer. When a dump is requested, we will
-     always be able to output all of [prev], even if [current] was just started. *)
+         always be able to output all of [prev], even if [current] was just started. *)
   ; mutable prev : Checkpoint.t
   ; mutable current : Checkpoint.t
   ; mutable size_bits : int
@@ -355,9 +355,9 @@ let try_consume t data =
   ret
 ;;
 
-(* Writing a trace with only tick init + interning events is valid, but
-   Perfetto will crash when interacting with it, so if the trace is empty we add
-   one real event telling the user this. *)
+(* Writing a trace with only tick init + interning events is valid, but Perfetto will
+   crash when interacting with it, so if the trace is empty we add one real event telling
+   the user this. *)
 let write_empty_trace_event writer =
   (* Overwriting string/thread slots doesn't matter; there are no other events. *)
   let name = Writer.set_temp_string_slot writer ~slot:0 "Empty trace!" in

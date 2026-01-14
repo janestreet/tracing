@@ -13,14 +13,17 @@ module Header_template = struct
   let create
     ?(int64s = 0)
     ?(int32s = 0)
+    ?(bools = 0)
     ?(floats = 0)
     ?(interned_strings = 0)
     ?(inlined_strings = 0)
     ()
     =
-    let num_args = int64s + floats + int32s + interned_strings + inlined_strings in
+    let num_args =
+      int64s + floats + int32s + bools + interned_strings + inlined_strings
+    in
     let arg_words =
-      (int64s * 2) + (floats * 2) + int32s + interned_strings + inlined_strings
+      (int64s * 2) + (floats * 2) + int32s + bools + interned_strings + inlined_strings
     in
     (* This also guards [arg_words] since it has a much larger bound *)
     if num_args > 15 then failwithf "%i is over the 15 event argument limit" num_args ();
@@ -29,9 +32,9 @@ module Header_template = struct
 
   let add_size t words = t + (words lsl 4)
 
-  (* isolate the rsize field, which is a word count shifted to the left by 4 bits,
-     we want the word count multiplied by 8, which is equivalent to the word count
-     shifted left by 3 (2**3=8), so we just need to shift right by one. *)
+  (* isolate the rsize field, which is a word count shifted to the left by 4 bits, we want
+     the word count multiplied by 8, which is equivalent to the word count shifted left by
+     3 (2**3=8), so we just need to shift right by one. *)
   let byte_size t = (t land 0xFFF0) lsr 1
 
   (* Because of the two bitfields for total size and argument count, we can effectively
@@ -39,12 +42,20 @@ module Header_template = struct
      we've comitted to. We can subtract integers representing those individual arguments
      to remove them from the template, and if we reach zero then we've subtracted
      compatible arguments. Except for issues involving overflow between the two fields,
-     which are unlikely to happen accidentally in practice, and this is only used by
-     a check to try to avoid writing invalid traces. See the comment for [pending_args]
+     which are unlikely to happen accidentally in practice, and this is only used by a
+     check to try to avoid writing invalid traces. See the comment for [pending_args]
      inside [flush]. *)
-  let[@inline] remove_args t ?int64s ?int32s ?floats ?interned_strings ?inlined_strings ()
+  let[@inline] remove_args
+    t
+    ?int64s
+    ?int32s
+    ?bools
+    ?floats
+    ?interned_strings
+    ?inlined_strings
+    ()
     =
-    t - create ?int64s ?int32s ?floats ?interned_strings ?inlined_strings ()
+    t - create ?int64s ?int32s ?bools ?floats ?interned_strings ?inlined_strings ()
   ;;
 
   (* [pending_args] below is a trick to check that we've written arguments matching the
@@ -97,9 +108,9 @@ let[@inline] write_int63 t i = Iobuf.Fill.int64_t_le t.buf (Int63.to_int64 i)
 let[@inline] write_int64 t i = Iobuf.Fill.int64_le t.buf i
 let[@inline] write_int64_t t i = Iobuf.Fill.int64_t_le t.buf i
 
-(* Due to the zero-alloc approach to writing arguments, some checking and writing needs
-   to be delayed until all arguments have been written, which should be before the next
-   event is written or the file is closed. *)
+(* Due to the zero-alloc approach to writing arguments, some checking and writing needs to
+   be delayed until all arguments have been written, which should be before the next event
+   is written or the file is closed. *)
 let flush t =
   Header_template.check_none t.pending_args;
   if t.pending_word
@@ -132,8 +143,8 @@ let ensure_capacity t amount =
   ensure_capacity_no_flush t amount
 ;;
 
-(* Because the format guarantees aligned 64-bit words, some things need to be padded to
-   8 bytes. This is an efficient expression for doing that. *)
+(* Because the format guarantees aligned 64-bit words, some things need to be padded to 8
+   bytes. This is an efficient expression for doing that. *)
 let padding_to_word x = -x land (8 - 1)
 
 (* many size fields in FTF are based on number of words, since the format is based on
@@ -154,7 +165,7 @@ let write_string_stream t s =
 module String_id = struct
   type t = int [@@deriving equal ~localize]
 
-  (* For our purposes there are a few types of [String_id]s organized as follows:
+  (*=For our purposes there are a few types of [String_id]s organized as follows:
     > [empty] - reserved for the empty string
     > [process] - reserved for ["process"]
     > [first_dyn .. first_temp - 1] - reserved for use by higher level libraries,
@@ -401,8 +412,8 @@ let write_event t ~event_type ~extra_words ~arg_types ~thread ~category ~name ~t
 (* I believe using currying for these would allocate or involve additional cost. *)
 
 let write_instant t ~arg_types ~thread ~category ~name ~ticks =
-  (* The [let writer] style avoids ocamlformat splitting these over a million lines.
-     I checked under flambda it generates the same code as a single call. *)
+  (* The [let writer] style avoids ocamlformat splitting these over a million lines. I
+     checked under flambda it generates the same code as a single call. *)
   let writer = write_event t ~event_type:Event_type.instant ~extra_words:0 in
   writer ~arg_types ~thread ~category ~name ~ticks
 ;;
@@ -514,6 +525,7 @@ module Header_tag = struct
   let string = 6
   let pointer = 7
   let _kernel_object_id = 8
+  let bool = 9
 end
 
 module Write_arg_unchecked = struct
@@ -540,8 +552,8 @@ module Write_arg_unchecked = struct
 
   let int32 t ~name value =
     let asize = 1L in
-    (* int32 arguments can use the most significant bit, so we need to use Int64.t
-       and we also need to be careful to truncate the int32 properly. *)
+    (* int32 arguments can use the most significant bit, so we need to use Int64.t and we
+       also need to be careful to truncate the int32 properly. *)
     write_int64_t
       t
       Int64.(
@@ -574,6 +586,13 @@ module Write_arg_unchecked = struct
     let asize = 2 in
     write_int64 t (Header_tag.float lor (asize lsl 4) lor (name lsl 16));
     write_int64_t t (Int64.bits_of_float value)
+  ;;
+
+  let bool t ~name value =
+    let asize = 1 in
+    write_int64
+      t
+      (Header_tag.bool lor (asize lsl 4) lor (name lsl 16) lor (Bool.to_int value lsl 32))
   ;;
 end
 
@@ -611,6 +630,11 @@ module Write_arg = struct
   let float t ~name value =
     t.pending_args <- Header_template.remove_args t.pending_args ~floats:1 ();
     Write_arg_unchecked.float t ~name value
+  ;;
+
+  let bool t ~name value =
+    t.pending_args <- Header_template.remove_args t.pending_args ~bools:1 ();
+    Write_arg_unchecked.bool t ~name value
   ;;
 end
 
@@ -720,6 +744,8 @@ module Expert = struct
     Int64.((header land 0xFFF0L) lsr 1) |> Int64.to_int_trunc
   ;;
 
+  let write_event = write_event
+
   let precompute_header ~event_type ~extra_words ~arg_types ~thread ~category ~name =
     let counts = Header_template.add_size arg_types (2 + extra_words) in
     let header = (event_header [@inlined]) ~counts ~event_type ~thread ~category ~name in
@@ -742,35 +768,40 @@ module Expert = struct
   let[@inline] int64_of_tsc ticks = Time_stamp_counter.to_int63 ticks |> Int63.to_int64
 
   let[@cold] refresh_buf t tsc =
-    switch_buffers t ~ensure_capacity:(Iobuf.length t.buf);
+    switch_buffers t ~ensure_capacity:1;
     t.cur_buf_tsc <- tsc
   ;;
 
   let[@inline] write_from_header_and_get_tsc t ~header =
-    (* Using [unsafe_set_int64_t_le] makes the assembly produced by this function
-       much simpler, with the writes getting completely inlined and only one conditional
-       branch for capacity checking.
+    (* Using [unsafe_set_int64_t_le] makes the assembly produced by this function much
+       simpler, with the writes getting completely inlined and only one conditional branch
+       for capacity checking.
 
        The benchmark does show a 1.5x-2x slowdown for using safe set calls (3-6ns/event).
 
        Safety proof sketch:
        - By assert in [precompute_header] and abstraction of the type,
          [header_byte_size header] >= 16 = bytes we write unsafely
-       - By [ensure_capacity], we know [Iobuf.length t.buf >= 16]
-         (this is either checked by the conditional or the check after [switch_buffers])
+       - By [ensure_capacity], we know [Iobuf.length t.buf >= 16] (this is either checked
+         by the conditional or the check after [switch_buffers])
        - By the definition of [Iobuf.length = hi - lo] we now have [hi - lo >= 16] and so
          [hi >= lo + 16]
        - By the invariant of [Iobuf] that [hi <= Bigstring.length (Iobuf.Expert.buf b)],
          substitution and transitivity we have [Bigstring.length bstr >= lo + 16]
-       - We write 8 bytes at [pos = lo] and [pos = lo + 8], thus
-         we never write beyond [lo + 16].
+       - We write 8 bytes at [pos = lo] and [pos = lo + 8], thus we never write beyond
+         [lo + 16].
        - By another invariant of [Iobuf] we have [lo >= 0]
        - By transitivity since we only write bytes at offsets x such that
          [lo <= x < lo+16], given the above we have [0 <= x < Bigstring.length bstr] so
          our writes are in bounds.
        - Since [final_pos = lo + 16] and [lo+16<=hi] our [set_lo] maintains the [Iobuf]
          invariant that [lo <= hi]. This function doesn't rely on [lo <= hi] but other
-         functions might.*)
+         functions might. *)
+    let ticks = Time_stamp_counter.now () in
+    (* Refresh the buffer before writing the header of a new record so that we don't split
+       a record between 2 buffers. *)
+    if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
+    then refresh_buf t ticks;
     let byte_size = header_byte_size header in
     ensure_capacity_no_flush t byte_size;
     let pos = Iobuf.Expert.lo t.buf in
@@ -779,16 +810,13 @@ module Expert = struct
     Iobuf.Expert.set_lo t.buf final_pos;
     Bigstring.unsafe_set_int64_t_le bstr ~pos header;
     let pos = pos + 8 in
-    let ticks = Time_stamp_counter.now () in
     Bigstring.unsafe_set_int64_t_le bstr ~pos (int64_of_tsc ticks);
-    if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
-    then refresh_buf t ticks;
     ticks
   ;;
 
   let[@inline] write_async_id t id =
-    (* Using [unsafe_set_int64_t_le] as in [write_from_header_and_get_tsc].
-       See justification there; async_id has a fixed size of 8 bytes. *)
+    (* Using [unsafe_set_int64_t_le] as in [write_from_header_and_get_tsc]. See
+       justification there; async_id has a fixed size of 8 bytes. *)
     ensure_capacity_no_flush t 8;
     let pos = Iobuf.Expert.lo t.buf in
     let bstr = Iobuf.Expert.buf t.buf in
@@ -813,7 +841,7 @@ let close t =
   flush t;
   let (module D : Destination) = t.destination in
   D.close ();
-  (* Make buffer have zero length so further writes will ask for a new buffer and throw
-     an exception. The [close] function should do that but we don't want to rely on it. *)
+  (* Make buffer have zero length so further writes will ask for a new buffer and throw an
+     exception. The [close] function should do that but we don't want to rely on it. *)
   Iobuf.resize t.buf ~len:0
 ;;

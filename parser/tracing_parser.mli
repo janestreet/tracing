@@ -32,14 +32,15 @@ end
 
 module Event_arg : sig
   type value =
-    | String of String_index.t
+    | String of String_ref.t
     | Int of int
     | Int64 of int64
     | Pointer of Int64.Hex.t
     | Float of float
+    | Bool of bool
   [@@deriving sexp_of, compare ~localize]
 
-  type t = String_index.t * value [@@deriving sexp_of, compare ~localize]
+  type t = String_ref.t * value [@@deriving sexp_of, compare ~localize]
 end
 
 module Event : sig
@@ -82,8 +83,8 @@ module Record : sig
         ; pid : int
         ; tid : int
         }
-    (* [Tick_initialization] records correspond to "initialization records" (record type 1)
-       in the Fuchsia spec. *)
+    (* [Tick_initialization] records correspond to "initialization records" (record
+       type 1) in the Fuchsia spec. *)
     | Tick_initialization of
         { ticks_per_second : int
         ; base_time : Time_ns.Option.t
@@ -141,7 +142,7 @@ exception Thread_not_found
 (* The functions below should only be called immediately after obtaining a record from
    [parse_next]. A new call to [parse_next] may invalidate any string indices/thread
    indices or tick rates stored on a previous record and the functions below would return
-   the wrong values.*)
+   the wrong values. *)
 val ticks_per_second : t -> int
 val base_time : t -> Time_ns.Option.t
 
@@ -152,8 +153,8 @@ val base_time : t -> Time_ns.Option.t
 val lookup_string_exn : t -> index:String_index.t -> string
 
 (* Either returns the string stored at [index] in the parser's string table if
-   [string_ref] is [String_index index] or returns the inlined string if [string_ref]
-   is [Inline_string].
+   [string_ref] is [String_index index] or returns the inlined string if [string_ref] is
+   [Inline_string].
 
    Raises in the same cases as [lookup_string_exn]. *)
 val lookup_string_ref_exn : t -> string_ref:String_ref.t -> string
