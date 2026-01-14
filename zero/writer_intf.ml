@@ -283,6 +283,17 @@ module type S = sig
       val flow_end : t
     end
 
+    val write_event
+      :  t
+      -> event_type:Event_type.t
+      -> extra_words:int
+      -> arg_types:Arg_types.t
+      -> thread:Thread_id.t
+      -> category:String_id.t
+      -> name:String_id.t
+      -> ticks:int
+      -> unit
+
     (** Pre-compose an event header word, for use with [write_from_header_with_tsc] *)
     val precompute_header
       :  event_type:Event_type.t
@@ -320,7 +331,7 @@ module type S = sig
         [Write_arg_unchecked] because it doesn't set the necessary state for checking. *)
     val write_from_header_with_tsc : t -> header:header -> unit
 
-    (** Same as [write_from_header_with_tsc] but but returns ticks. See
+    (** Same as [write_from_header_with_tsc] but returns ticks. See
         [Tracing.Writer.write_duration_instant]. *)
     val write_from_header_and_get_tsc : t -> header:header -> Time_stamp_counter.t
 

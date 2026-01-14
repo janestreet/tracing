@@ -32,7 +32,7 @@ end
 
 module Event_arg : sig
   type value =
-    | String of String_index.t
+    | String of String_ref.t
     | Int of int
     | Int64 of int64
     | Pointer of Int64.Hex.t
@@ -40,7 +40,7 @@ module Event_arg : sig
     | Bool of bool
   [@@deriving sexp_of, compare ~localize]
 
-  type t = String_index.t * value [@@deriving sexp_of, compare ~localize]
+  type t = String_ref.t * value [@@deriving sexp_of, compare ~localize]
 end
 
 module Event : sig

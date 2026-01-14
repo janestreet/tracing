@@ -744,6 +744,8 @@ module Expert = struct
     Int64.((header land 0xFFF0L) lsr 1) |> Int64.to_int_trunc
   ;;
 
+  let write_event = write_event
+
   let precompute_header ~event_type ~extra_words ~arg_types ~thread ~category ~name =
     let counts = Header_template.add_size arg_types (2 + extra_words) in
     let header = (event_header [@inlined]) ~counts ~event_type ~thread ~category ~name in
@@ -766,7 +768,7 @@ module Expert = struct
   let[@inline] int64_of_tsc ticks = Time_stamp_counter.to_int63 ticks |> Int63.to_int64
 
   let[@cold] refresh_buf t tsc =
-    switch_buffers t ~ensure_capacity:(Iobuf.length t.buf);
+    switch_buffers t ~ensure_capacity:1;
     t.cur_buf_tsc <- tsc
   ;;
 
@@ -795,6 +797,11 @@ module Expert = struct
        - Since [final_pos = lo + 16] and [lo+16<=hi] our [set_lo] maintains the [Iobuf]
          invariant that [lo <= hi]. This function doesn't rely on [lo <= hi] but other
          functions might. *)
+    let ticks = Time_stamp_counter.now () in
+    (* Refresh the buffer before writing the header of a new record so that we don't split
+       a record between 2 buffers. *)
+    if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
+    then refresh_buf t ticks;
     let byte_size = header_byte_size header in
     ensure_capacity_no_flush t byte_size;
     let pos = Iobuf.Expert.lo t.buf in
@@ -803,10 +810,7 @@ module Expert = struct
     Iobuf.Expert.set_lo t.buf final_pos;
     Bigstring.unsafe_set_int64_t_le bstr ~pos header;
     let pos = pos + 8 in
-    let ticks = Time_stamp_counter.now () in
     Bigstring.unsafe_set_int64_t_le bstr ~pos (int64_of_tsc ticks);
-    if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
-    then refresh_buf t ticks;
     ticks
   ;;
 

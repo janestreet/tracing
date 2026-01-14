@@ -19,7 +19,7 @@ end
 
 module Event_arg = struct
   type value =
-    | String of String_index.t
+    | String of String_ref.t
     | Int of int
     | Int64 of int64
     | Pointer of Int64.Hex.t
@@ -27,7 +27,7 @@ module Event_arg = struct
     | Bool of bool
   [@@deriving sexp_of, compare ~localize]
 
-  type t = String_index.t * value [@@deriving sexp_of, compare ~localize]
+  type t = String_ref.t * value [@@deriving sexp_of, compare ~localize]
 end
 
 module Event = struct
@@ -378,12 +378,12 @@ let rec parse_args ?(args = []) t ~num_args =
   then List.rev args
   else (
     let header_low_word = consume_int32_exn t.cur_record in
-    let arg_type = extract_field header_low_word ~pos:0 ~size:4 in
-    let rsize = extract_field header_low_word ~pos:4 ~size:12 in
-    let arg_name = extract_string_index t header_low_word ~pos:16 in
     (* The Fuchsia spec says the upper 32-bits of the header are reserved for future
        extensions, and should just be ignored if they aren't used. *)
     let header_high_word = consume_int32_exn t.cur_record in
+    let arg_type = extract_field header_low_word ~pos:0 ~size:4 in
+    let rsize = extract_field header_low_word ~pos:4 ~size:12 in
+    let arg_name = extract_string_ref t header_low_word ~pos:16 in
     let (args : Event_arg.t list) =
       match arg_type with
       (* arg_type 0 is a null argument with no value. We never write these so we just
@@ -402,7 +402,7 @@ let rec parse_args ?(args = []) t ~num_args =
         let value = Int64.float_of_bits value_as_int64 in
         (arg_name, Float value) :: args
       | 6 ->
-        let value = extract_string_index t header_high_word ~pos:0 in
+        let value = extract_string_ref t header_high_word ~pos:0 in
         (arg_name, String value) :: args
       | 7 ->
         let value = consume_int64_t_exn t.cur_record in

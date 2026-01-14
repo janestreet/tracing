@@ -102,10 +102,10 @@ let process_event t (event : Parser.Event.t) =
      Writer.write_flow_end t.writer ~thread ~ticks ~flow_id);
   (* Write arguments *)
   List.iter event.arguments ~f:(fun (name, value) ->
-    let name = writer_string_id t name in
+    let name = writer_string_ref t name in
     match value with
     | String str ->
-      let string_id = writer_string_id t str in
+      let string_id = writer_string_ref t str in
       Writer.Write_arg.interned_string t.writer ~name string_id
     | Float i -> Writer.Write_arg.float t.writer ~name i
     | Bool i -> Writer.Write_arg.bool t.writer ~name i

@@ -155,9 +155,9 @@ module Checkpoint = struct
 
   let process_args t =
     List.iter ~f:(fun (name, arg) ->
-      process_string_index t name;
+      process_string_ref t name;
       match arg with
-      | Parser.Event_arg.String idx -> process_string_index t idx
+      | Parser.Event_arg.String string_ref -> process_string_ref t string_ref
       | _ -> ())
   ;;
 
