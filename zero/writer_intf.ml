@@ -348,7 +348,7 @@ module type S = sig
     (** Enables or disables mapping [String_id.t] to [string] when interning strings.
 
         Use with caution: Enabling this will allocate upon interning strings and cost an
-        additional [Hashtbl.add] call. *)
+        additional [Hashtbl.set] call. *)
     val set_string_map_allocate_on_intern : t -> enable:bool -> unit
 
     (** Returns a string represented by the corresponding [String_id.t] *)

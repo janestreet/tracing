@@ -88,7 +88,7 @@ type t =
   ; mutable pending_word : bool
   ; mutable cur_buf_tsc : Time_stamp_counter.t
   ; mutable string_map_enabled : bool
-  ; mutable original_string : string Int.Table.t
+  ; mutable interned_strings_by_id : string Int.Table.t
   }
 
 let new_buf_every =
@@ -198,7 +198,7 @@ let set_string_slot t ~string_id s =
   let str_len = String.length s in
   check_string_length str_len;
   if t.string_map_enabled
-  then Hashtbl.add_exn t.original_string ~key:string_id ~data:(String.globalize s);
+  then Hashtbl.set t.interned_strings_by_id ~key:string_id ~data:(String.globalize s);
   (* String record *)
   let rtype = 2 in
   let rsize = 1 + round_words_for str_len in
@@ -661,7 +661,7 @@ module Expert = struct
     ; pending_word = false
     ; cur_buf_tsc = Time_stamp_counter.now ()
     ; string_map_enabled = false
-    ; original_string = Int.Table.create ()
+    ; interned_strings_by_id = Int.Table.create ()
     }
   ;;
 
@@ -832,7 +832,7 @@ module Expert = struct
   let write_tsc t ticks = write_int64_t t (int64_of_tsc ticks)
   let write_string_stream = write_string_stream
   let set_string_map_allocate_on_intern t ~enable = t.string_map_enabled <- enable
-  let string_of_string_id t = Hashtbl.find t.original_string
+  let string_of_string_id t = Hashtbl.find t.interned_strings_by_id
 
   module Write_arg_unchecked = Write_arg_unchecked
 end
