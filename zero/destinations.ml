@@ -89,10 +89,13 @@ end = struct
     let t = { buffers = [] } in
     let module Dest = struct
       let next_buf ~ensure_capacity =
-        let capacity = Int.max ensure_capacity 1_000 in
-        let buf = Iobuf.create ~len:capacity in
-        t.buffers <- buf :: t.buffers;
-        buf
+        match t.buffers with
+        | buf :: _ when Iobuf.length buf >= ensure_capacity -> buf
+        | _ ->
+          let capacity = Int.max ensure_capacity 1_000 in
+          let buf = Iobuf.create ~len:capacity in
+          t.buffers <- buf :: t.buffers;
+          buf
       ;;
 
       (* We have nowhere to flush to *)
