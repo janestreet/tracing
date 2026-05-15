@@ -89,13 +89,11 @@ type t =
   ; mutable cur_buf_tsc : Time_stamp_counter.t
   ; mutable string_map_enabled : bool
   ; mutable interned_strings_by_id : string Int.Table.t
+  ; refresh_buf_at_intervals : bool
   }
 
-let new_buf_every =
-  Time_stamp_counter.Span.of_ns
-    ~calibrator:(force Time_stamp_counter.calibrator)
-    (Int63.of_int 1_000_000_000)
-;;
+let calibrator = Lazy.force Time_stamp_counter.calibrator
+let new_buf_every = Time_stamp_counter.Span.of_ns ~calibrator (Int63.of_int 1_000_000_000)
 
 module Tick_translation = Writer_intf.Tick_translation
 
@@ -171,7 +169,7 @@ module String_id = struct
     > [first_dyn .. first_temp - 1] - reserved for use by higher level libraries,
       accesed via [Expert.set_dyn_slot]
     > [first-temp .. first_temp + num_temp_strs - 1] - temporary strings modifiable
-      by users via [intern_temp_string]. [num_temp_strs] set at creation, default 100.
+      by users via [set_temp_string_slot]. [num_temp_strs] set at creation, default 100.
     > [first_temp + num_temp_strs .. max_value] - are permanent strings set
       via [intern_string].
   *)
@@ -185,6 +183,21 @@ module String_id = struct
   let of_int slot = slot
 end
 
+let[@inline] get_slot ~name ~slot ~first ~max_num =
+  if slot >= max_num then failwithf "%s over the limit: %i >= %i" name slot max_num ();
+  if slot < 0 then failwithf "%s must not be negative: slot %i < 0" name slot ();
+  let string_id = slot + first in
+  string_id
+;;
+
+let get_temp_string_slot t ~slot =
+  get_slot
+    ~name:"temp string slot"
+    ~slot
+    ~first:String_id.first_temp
+    ~max_num:t.num_temp_strs
+;;
+
 (* maximum string length defined in spec, somewhat less than 2**15 *)
 let max_interned_string_length = 32000 - 1
 
@@ -194,23 +207,52 @@ let check_string_length length =
   then failwithf "string too long for FTF trace: %i is over the limit of 32kb" length ()
 ;;
 
+let[@inline] write_string_slot_header t ~string_id ~str_len =
+  let rtype = 2 (* String record *) in
+  let rsize = 1 + round_words_for str_len in
+  ensure_capacity t (rsize * 8);
+  write_int64 t (rtype lor (rsize lsl 4) lor (string_id lsl 16) lor (str_len lsl 32))
+;;
+
 let set_string_slot t ~string_id s =
   let str_len = String.length s in
   check_string_length str_len;
   if t.string_map_enabled
   then Hashtbl.set t.interned_strings_by_id ~key:string_id ~data:(String.globalize s);
-  (* String record *)
-  let rtype = 2 in
-  let rsize = 1 + round_words_for str_len in
-  ensure_capacity t (rsize * 8);
-  write_int64 t (rtype lor (rsize lsl 4) lor (string_id lsl 16) lor (str_len lsl 32));
+  write_string_slot_header t ~string_id ~str_len;
   write_string_stream t s
 ;;
 
+let[@cold] write_to_string_map_2_int64s t ~string_id word1 word2 =
+  let bytes = Bytes.create 16 in
+  Bytes.unsafe_set_int64 bytes 0 word1;
+  Bytes.unsafe_set_int64 bytes 8 word2;
+  Hashtbl.set
+    t.interned_strings_by_id
+    ~key:string_id
+    ~data:(Bytes.unsafe_to_string ~no_mutation_while_string_reachable:bytes)
+;;
+
+let[@inline] set_string_slot_2_int64s t ~string_id word1 word2 =
+  let str_len = 16 (* we skip [check_string_length] knowing it's less than the max *) in
+  if t.string_map_enabled then write_to_string_map_2_int64s t ~string_id word1 word2;
+  write_string_slot_header t ~string_id ~str_len;
+  (* Write the two data words directly into the Iobuf, following the same pattern as
+     [write_from_header_and_get_tsc] and [write_async_id].
+
+     Safety: [ensure_capacity] guarantees [Iobuf.length t.buf >= 24]. [write_int64]
+     consumes 8 bytes, leaving [length >= 16]. We write 16 bytes at offsets [pos] and
+     [pos+8], both within bounds. [set_lo (pos+16)] maintains [lo <= hi]. *)
+  let pos = Iobuf.Expert.lo t.buf in
+  let bstr = Iobuf.Expert.buf t.buf in
+  let final_pos = pos + 16 in
+  Iobuf.Expert.set_lo t.buf final_pos;
+  Bigstring.unsafe_set_int64_t_le bstr ~pos word1;
+  Bigstring.unsafe_set_int64_t_le bstr ~pos:(pos + 8) word2
+;;
+
 let set_temp_string_slot t ~slot s =
-  if slot >= t.num_temp_strs
-  then failwithf "temp string slot over the limit: %i >= %i" slot t.num_temp_strs ();
-  let string_id = slot + String_id.first_temp in
+  let string_id = get_temp_string_slot t ~slot in
   set_string_slot t ~string_id s;
   string_id
 ;;
@@ -259,10 +301,12 @@ let write_header t =
 ;;
 
 let make_tick_translation () =
-  let calibrator = Lazy.force Time_stamp_counter.calibrator in
-  (* Only fails when on a 32 bit platform is detected, which we don't deploy any of *)
-  let mhz_est = (Or_error.ok_exn Time_stamp_counter.Calibrator.cpu_mhz) calibrator in
-  let ticks_per_second = Float.to_int (mhz_est *. 1E6) in
+  let ticks_per_second =
+    (* In a very unlikely scenario when [cpu_hz] fails, return a placeholder value. *)
+    let placeholder_cpu_hz = 1_000_000_000 in
+    Time_stamp_counter.Calibrator.cpu_hz calibrator
+    |> Or_null.value ~default:placeholder_cpu_hz
+  in
   let base_tsc = Time_stamp_counter.now () in
   let base_ticks = base_tsc |> Time_stamp_counter.to_int63 |> Int63.to_int_exn in
   let base_time = Time_stamp_counter.to_time_ns ~calibrator base_tsc in
@@ -277,6 +321,11 @@ let write_tick_initialization t (tick_translation : Tick_translation.t) =
   write_int64 t tick_translation.ticks_per_second;
   write_int64 t tick_translation.base_ticks;
   write_int63 t (Time_ns.to_int63_ns_since_epoch tick_translation.base_time)
+;;
+
+let make_and_write_tick_translation t =
+  let tick_translation = make_tick_translation () in
+  write_tick_initialization t tick_translation [@nontail]
 ;;
 
 module Thread_id = struct
@@ -343,7 +392,7 @@ type 'a event_writer =
   -> ticks:int
   -> 'a
 
-let[@inline] event_header ~counts ~event_type ~thread ~category ~name =
+let[@inline] [@zero_alloc] event_header ~counts ~event_type ~thread ~category ~name =
   Int64.(
     4L (* rtype *)
     lor of_int counts
@@ -353,11 +402,11 @@ let[@inline] event_header ~counts ~event_type ~thread ~category ~name =
     lor (of_int name lsl 48))
 ;;
 
-let[@inline] header_set_name ~header ~name =
+let[@inline] [@zero_alloc] header_set_name ~header ~name =
   Int64.(header land 0x0000ffffffffffffL lor (of_int name lsl 48))
 ;;
 
-let[@inline] header_update_size_for_inline_string ~header ~inline_string =
+let[@inline] [@zero_alloc] header_update_size_for_inline_string ~header ~inline_string =
   let current_word_count = Int64.((header land 0xFFF0L) lsr 4) in
   let words_to_add = round_words_for (String.length inline_string) |> Int64.of_int in
   let new_word_count = Int64.(current_word_count + words_to_add) in
@@ -373,7 +422,7 @@ let[@inline] header_update_size_for_inline_string ~header ~inline_string =
   Int64.(header_without_size + (new_word_count lsl 4))
 ;;
 
-let[@inline] header_update_size_for_name ~header ~name =
+let[@inline] [@zero_alloc] header_update_size_for_name ~header ~name =
   let header = header_update_size_for_inline_string ~header ~inline_string:name in
   let str_len = String.length name in
   let inline_string_flag = 1 in
@@ -550,7 +599,7 @@ module Write_arg_unchecked = struct
     write_string_stream t value
   ;;
 
-  let int32 t ~name value =
+  let[@zero_alloc] int32 t ~name value =
     let asize = 1L in
     (* int32 arguments can use the most significant bit, so we need to use Int64.t and we
        also need to be careful to truncate the int32 properly. *)
@@ -561,7 +610,7 @@ module Write_arg_unchecked = struct
         lor (asize lsl 4)
         lor (of_int name lsl 16)
         (* because we use Int64 this also truncates to 32 bits *)
-        lor (of_int value lsl 32))
+        lor (of_int value lsl 32)) [@nontail]
   ;;
 
   let int63 t ~name value =
@@ -641,7 +690,12 @@ end
 module Expert = struct
   module type Destination = Destination
 
-  let create_no_header ?(num_temp_strs = 100) ~destination () =
+  let create_no_header
+    ?(num_temp_strs = 100)
+    ?(refresh_buf_at_intervals = true)
+    ~destination
+    ()
+    =
     if num_temp_strs > String_id.max_number_of_temp_string_slots
     then failwith "num_temp_strs too large";
     (* If [num_temp_strs] is set to [String_id.max_number_of_temp_string_slots],
@@ -662,11 +716,12 @@ module Expert = struct
     ; cur_buf_tsc = Time_stamp_counter.now ()
     ; string_map_enabled = false
     ; interned_strings_by_id = Int.Table.create ()
+    ; refresh_buf_at_intervals
     }
   ;;
 
-  let create ?num_temp_strs ~destination () =
-    let t = create_no_header ?num_temp_strs ~destination () in
+  let create ?num_temp_strs ?refresh_buf_at_intervals ~destination () =
+    let t = create_no_header ?num_temp_strs ?refresh_buf_at_intervals ~destination () in
     write_header t;
     t
   ;;
@@ -703,18 +758,22 @@ module Expert = struct
   ;;
 
   let get_dyn_slot ~slot =
-    if slot >= String_id.num_dyn
-    then
-      failwithf "dynamic string slot over the limit: %i >= %i" slot String_id.num_dyn ();
-    if slot < 0
-    then failwithf "dynamic string slot must not be negative: slot %i < 0" slot ();
-    let string_id = slot + String_id.first_dyn in
-    string_id
+    get_slot
+      ~name:"dynamic string slot"
+      ~slot
+      ~first:String_id.first_dyn
+      ~max_num:String_id.num_dyn
   ;;
 
   let set_dyn_slot t ~slot s =
     let string_id = get_dyn_slot ~slot in
     set_string_slot t ~string_id s;
+    string_id
+  ;;
+
+  let[@inline] set_dyn_slot_2_int64s t ~slot word1 word2 =
+    let string_id = get_dyn_slot ~slot in
+    set_string_slot_2_int64s t ~string_id word1 word2;
     string_id
   ;;
 
@@ -735,7 +794,21 @@ module Expert = struct
 
   let flush = flush
 
+  let[@cold] refresh_buf t tsc =
+    switch_buffers t ~ensure_capacity:1;
+    t.cur_buf_tsc <- tsc
+  ;;
+
+  let refresh_buf_if_stale_and_update_tick_translation t ~now:now_ =
+    if Time_stamp_counter.(Span.( > ) (diff now_ t.cur_buf_tsc) new_buf_every)
+    then (
+      refresh_buf t now_;
+      make_and_write_tick_translation t)
+  ;;
+
   type header = Int64.t
+
+  let globalize_header = Int64.globalize
 
   module Event_type = Event_type
 
@@ -746,7 +819,14 @@ module Expert = struct
 
   let write_event = write_event
 
-  let precompute_header ~event_type ~extra_words ~arg_types ~thread ~category ~name =
+  let[@zero_alloc] precompute_header
+    ~event_type
+    ~extra_words
+    ~arg_types
+    ~thread
+    ~category
+    ~name
+    =
     let counts = Header_template.add_size arg_types (2 + extra_words) in
     let header = (event_header [@inlined]) ~counts ~event_type ~thread ~category ~name in
     (* we're going to unsafely write 16 bytes so validate this ahead of time using the
@@ -755,22 +835,17 @@ module Expert = struct
     header
   ;;
 
-  let[@inline] set_name ~header ~name = header_set_name ~header ~name
+  let[@inline] [@zero_alloc] set_name ~header ~name = header_set_name ~header ~name
 
-  let[@inline] update_size_for_name ~header ~name =
+  let[@inline] [@zero_alloc] update_size_for_name ~header ~name =
     header_update_size_for_name ~header ~name
   ;;
 
-  let[@inline] update_size_for_inline_string ~header ~inline_string =
+  let[@inline] [@zero_alloc] update_size_for_inline_string ~header ~inline_string =
     header_update_size_for_inline_string ~header ~inline_string
   ;;
 
   let[@inline] int64_of_tsc ticks = Time_stamp_counter.to_int63 ticks |> Int63.to_int64
-
-  let[@cold] refresh_buf t tsc =
-    switch_buffers t ~ensure_capacity:1;
-    t.cur_buf_tsc <- tsc
-  ;;
 
   let[@inline] write_from_header_and_get_tsc t ~header =
     (* Using [unsafe_set_int64_t_le] makes the assembly produced by this function much
@@ -797,11 +872,11 @@ module Expert = struct
        - Since [final_pos = lo + 16] and [lo+16<=hi] our [set_lo] maintains the [Iobuf]
          invariant that [lo <= hi]. This function doesn't rely on [lo <= hi] but other
          functions might. *)
-    let ticks = Time_stamp_counter.now () in
+    let now = Time_stamp_counter.now () in
     (* Refresh the buffer before writing the header of a new record so that we don't split
        a record between 2 buffers. *)
-    if Time_stamp_counter.(Span.( > ) (diff ticks t.cur_buf_tsc) new_buf_every)
-    then refresh_buf t ticks;
+    if t.refresh_buf_at_intervals
+    then refresh_buf_if_stale_and_update_tick_translation t ~now;
     let byte_size = header_byte_size header in
     ensure_capacity_no_flush t byte_size;
     let pos = Iobuf.Expert.lo t.buf in
@@ -810,8 +885,8 @@ module Expert = struct
     Iobuf.Expert.set_lo t.buf final_pos;
     Bigstring.unsafe_set_int64_t_le bstr ~pos header;
     let pos = pos + 8 in
-    Bigstring.unsafe_set_int64_t_le bstr ~pos (int64_of_tsc ticks);
-    ticks
+    Bigstring.unsafe_set_int64_t_le bstr ~pos (int64_of_tsc now);
+    now
   ;;
 
   let[@inline] write_async_id t id =

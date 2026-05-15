@@ -43,6 +43,7 @@ module Tick_translation = struct
     ; base_ticks : int
     ; base_time : Time_ns.t
     }
+  [@@deriving globalize]
 
   let epoch_ns =
     { ticks_per_second = 1_000_000_000; base_ticks = 0; base_time = Time_ns.epoch }
@@ -67,6 +68,7 @@ module type S = sig
 
   val make_tick_translation : unit -> Tick_translation.t
   val write_tick_initialization : t -> Tick_translation.t -> unit
+  val make_and_write_tick_translation : t -> unit
 
   module String_id : sig
     type t [@@deriving equal ~localize] [@@immediate]
@@ -97,6 +99,7 @@ module type S = sig
       trace, unlike [intern_string]. *)
   val set_temp_string_slot : t -> slot:int -> string -> String_id.t
 
+  val get_temp_string_slot : t -> slot:int -> String_id.t
   val num_temp_strs : t -> int
 
   (** The trace format interns the 64 bit thread and process IDs into an 8-bit thread ID
@@ -224,11 +227,25 @@ module type S = sig
   module Expert : sig
     module type Destination = Destination
 
-    val create : ?num_temp_strs:int -> destination:(module Destination) -> unit -> t
+    (** Creates writer.
 
-    (** Creates writer without writing a FXT file header to the destination. *)
+        [refresh_buf_at_intervals] determines whether this writer will attempt to refresh
+        the buffer at its freshness intervals; defaults to [true]. Freshness is checked
+        before an event is written and the buffer is refreshed if stale. This means that a
+        potentially expensive operation (refresh buffer) is done either 0 or 1 times
+        before each event is written. If you set [refresh_buf_at_intervals:false], you
+        should call [refresh_buf_if_stale] regularly to flush the latest data. *)
+    val create
+      :  ?num_temp_strs:int
+      -> ?refresh_buf_at_intervals:bool
+      -> destination:(module Destination)
+      -> unit
+      -> t
+
+    (** Same as [create] but without writing a FXT file header to the destination. *)
     val create_no_header
       :  ?num_temp_strs:int
+      -> ?refresh_buf_at_intervals:bool
       -> destination:(module Destination)
       -> unit
       -> t
@@ -260,8 +277,23 @@ module type S = sig
         This is currently only intended for use by tests. *)
     val flush : t -> unit
 
+    (** Refreshes the buffer when its freshness interval has elapsed. You should call this
+        manually iff you specified [refresh_buf_at_intervals:false] when creating the
+        writer.
+
+        This should be called *regularly* to flush the latest written data, which ensures:
+        - the buffer's consumer is able to read up-to-date data, and
+        - most data will not be lost if the program/writer crashes.
+
+        Additionally update tick translation to keep resulting timestamps accurate. *)
+    val refresh_buf_if_stale_and_update_tick_translation
+      :  t
+      -> now:Time_stamp_counter.t
+      -> unit
+
     type header
 
+    val globalize_header : header -> header
     val set_name : header:header -> name:String_id.t -> header
     val update_size_for_name : header:header -> name:string -> header
     val update_size_for_inline_string : header:header -> inline_string:string -> header
@@ -304,7 +336,7 @@ module type S = sig
       -> name:String_id.t
       -> header
 
-    (** Provides a way to get the String_id.t of the slots that are reserved for higher
+    (** Provides a way to get the [String_id.t] of the slots that are reserved for higher
         level libraries. *)
     val get_dyn_slot : slot:int -> String_id.t
 
@@ -314,6 +346,10 @@ module type S = sig
         interned to these slots are valid *only* immediately after interning, as the slot
         will be reused in subsequent probes. *)
     val set_dyn_slot : t -> slot:int -> string -> String_id.t
+
+    (** Like [set_dyn_slot] but optimised to write a 16-byte (2-word) value. It bypasses
+        the variable-length string interning path and writes directly into the slot. *)
+    val set_dyn_slot_2_int64s : t -> slot:int -> Int64.t -> Int64.t -> String_id.t
 
     (** Write an event using a pre-composed header, and using less safety checking than
         the normal event writing functions, intended for low-overhead probe

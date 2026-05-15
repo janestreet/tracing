@@ -15,7 +15,7 @@ let process_directory dir_path =
       [%trace.sync.end __ ~category:"demo" ~probe:"manual"];
       (match stat.kind with
        | Regular ->
-         let num_bytes = Int63.to_int stat.size |> Option.value ~default:0 in
+         let num_bytes = Int64_u.to_int stat.size |> Option.value ~default:0 in
          print_endline [%string "File: %{path#File_path}, Size: %{num_bytes#Int} bytes"];
          process queue (total_size + num_bytes)
        | Directory ->

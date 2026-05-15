@@ -20,6 +20,7 @@ type t =
   ; mutable async_id_counter : int
   ; mutable counter_id_counter : int
   ; mutable koid_counter : int
+  ; temp_string_cache : int String.Hash_queue.t
   }
 
 let create ~base_time writer =
@@ -41,6 +42,7 @@ let create ~base_time writer =
   ; async_id_counter = 0
   ; counter_id_counter = 0
   ; koid_counter = 0
+  ; temp_string_cache = String.Hash_queue.create ()
   }
 ;;
 
@@ -58,6 +60,20 @@ let translate_time t time =
 let intern_string_cached t s =
   Hashtbl.find_or_add t.interned_strings s ~default:(fun () ->
     TW.intern_string t.writer s)
+;;
+
+let set_temp_string_slot_cached t s =
+  match Hash_queue.lookup_and_move_to_back t.temp_string_cache s with
+  | Some slot -> TW.get_temp_string_slot t.writer ~slot
+  | None ->
+    let slot =
+      let num_used_slots = Hash_queue.length t.temp_string_cache in
+      if num_used_slots = TW.num_temp_strs t.writer
+      then Hash_queue.dequeue_front_exn t.temp_string_cache
+      else num_used_slots
+    in
+    Hash_queue.enqueue_back_exn t.temp_string_cache s slot;
+    TW.set_temp_string_slot t.writer ~slot s
 ;;
 
 let span_to_ticks span = Time_ns.Span.to_int_ns span
@@ -88,12 +104,10 @@ module Baked_args = struct
 
   type t = (TW.String_id.t * baked_value) list
 
-  let bake temp_slot trace (v : Arg.value) : baked_value =
+  let bake trace (v : Arg.value) : baked_value =
     match v with
     | Interned s -> String (intern_string_cached trace s)
-    | String s ->
-      incr temp_slot;
-      String (TW.set_temp_string_slot trace.writer ~slot:!temp_slot s)
+    | String s -> String (set_temp_string_slot_cached trace s)
     | Int i -> if Util.int_fits_in_int32 i then Int32 i else Int63 i
     | Int64 i ->
       if Util.int64_fits_in_int32 i then Int32 (Int64.to_int_trunc i) else Int64 i
@@ -102,9 +116,7 @@ module Baked_args = struct
   ;;
 
   let create trace (args : Arg.t list) : t =
-    let temp_slot = ref 0 in
-    List.map args ~f:(fun (name, v) ->
-      intern_string_cached trace name, bake temp_slot trace v)
+    List.map args ~f:(fun (name, v) -> intern_string_cached trace name, bake trace v)
   ;;
 
   let types t =

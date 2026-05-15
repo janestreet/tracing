@@ -2,6 +2,6 @@
  (modes byte exe)
  (names sync_demo)
  (libraries core_unix.command_unix core core_unix file_path filesystem.core
-   segment_remapper tracing_introspection tracing_probes)
+   unboxed.int64_u segment_remapper tracing_introspection tracing_probes)
  (preprocess
   (pps ppx_tracing ppx_jane)))
