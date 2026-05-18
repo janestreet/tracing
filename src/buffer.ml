@@ -371,7 +371,7 @@ let write_empty_trace_event writer =
       ~category:name
       ~name
   in
-  Writer.Expert.write_from_header_with_tsc writer ~header
+  Writer.Expert.write_from_header_with_tsc writer ~header [@nontail]
 ;;
 
 let output t final_dest =

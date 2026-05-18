@@ -29,8 +29,8 @@ let write_demo_trace t =
     ~ticks_end:5_000_000;
   (* re-use some existing interned strings for argument names *)
   TW.Write_arg.interned_string t ~name category;
-  let temp_str = TW.set_temp_string_slot t ~slot:1 "wow" in
-  let temp_str2 = TW.set_temp_string_slot t ~slot:2 "cool" in
+  let temp_str = TW.set_temp_string_slot t ~slot:0 "wow" in
+  let temp_str2 = TW.set_temp_string_slot t ~slot:1 "cool" in
   TW.write_duration_complete
     t
     ~arg_types:(TW.Arg_types.create ~interned_strings:2 ())
@@ -160,7 +160,16 @@ let write_demo_trace t =
     ~name
     ~ticks:20_000_000
     ~counter_id:1;
-  TW.Write_arg.pointer t ~name:category Int64.max_value
+  TW.Write_arg.pointer t ~name:category Int64.max_value;
+  TW.write_duration_complete
+    t
+    ~arg_types:(TW.Arg_types.create ~interned_strings:1 ())
+    ~thread
+    ~category
+    ~name
+    ~ticks:42_000_000
+    ~ticks_end:43_000_000;
+  TW.Write_arg.interned_string t ~name temp_str
 ;;
 
 (** This must be kept in sync with [write_demo_trace] and write a byte-identical trace *)
@@ -288,5 +297,13 @@ let write_demo_trace_high_level writer =
     ~category
     ~name
     ~time:(time_for_us 20_000);
+  Trace.write_duration_complete
+    trace
+    ~args:Trace.Arg.[ name, String "wow" ]
+    ~thread
+    ~category
+    ~name
+    ~time:(time_for_us 42_000)
+    ~time_end:(time_for_us 43_000);
   ()
 ;;
